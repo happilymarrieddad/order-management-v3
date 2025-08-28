@@ -83,8 +83,8 @@ make db.migrate.up
 With the database running and migrations are applied, start the API server.
 
 ```sh
-# The entrypoint is cmd/api/main.go
-go run ./cmd/api
+# The entrypoint is cmd/main.go
+go run cmd/main.go
 ```
 
 ## Running Tests
