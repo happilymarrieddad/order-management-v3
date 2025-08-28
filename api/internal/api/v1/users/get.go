@@ -9,7 +9,17 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 )
 
-// Get handles the HTTP request to retrieve a user by their ID.
+// @Summary      Get a user by ID
+// @Description  Retrieves the details of a single user by their unique ID.
+// @Tags         users
+// @Produce      json
+// @Param        id  path      int                      true  "User ID"
+// @Success      200 {object}  types.User               "Successfully retrieved user"
+// @Failure      400 {object}  middleware.ErrorResponse "Bad Request - Invalid ID"
+// @Failure      404 {object}  middleware.ErrorResponse "Not Found - User not found"
+// @Failure      500 {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /users/{id} [get]
 func Get(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
 	vars := mux.Vars(r)
@@ -24,7 +34,6 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	if !found {
 		middleware.WriteError(w, http.StatusNotFound, "user not found")
 		return

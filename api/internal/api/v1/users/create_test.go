@@ -127,6 +127,19 @@ var _ = Describe("Create User Handler", func() {
 			Expect(rr.Body.String()).To(ContainSubstring("company not found"))
 		})
 
+		It("should return 500 if checking company existence fails", func() {
+			body, _ := json.Marshal(createPayload)
+			companyID := createPayload["company_id"].(int64)
+			email := createPayload["email"].(string)
+
+			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), email).Return(nil, false, nil)
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(nil, false, errors.New("company db error"))
+
+			req := createRequestWithRepo("POST", "/api/v1/users", body, nil)
+			users.Create(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+		})
+
 		It("should return 400 if the address does not exist", func() {
 			body, _ := json.Marshal(createPayload)
 			companyID := createPayload["company_id"].(int64)
@@ -141,6 +154,21 @@ var _ = Describe("Create User Handler", func() {
 			users.Create(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
+		})
+
+		It("should return 500 if checking address existence fails", func() {
+			body, _ := json.Marshal(createPayload)
+			companyID := createPayload["company_id"].(int64)
+			addressID := createPayload["address_id"].(int64)
+			email := createPayload["email"].(string)
+
+			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), email).Return(nil, false, nil)
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(&types.Company{ID: companyID}, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(nil, false, errors.New("address db error"))
+
+			req := createRequestWithRepo("POST", "/api/v1/users", body, nil)
+			users.Create(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 

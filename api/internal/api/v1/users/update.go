@@ -10,6 +10,19 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
+// @Summary      Update a user
+// @Description  Updates an existing user's details. This does not update the password.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int                      true  "User ID"
+// @Param        user body      UpdateUserPayload        true  "User Update Payload"
+// @Success      200  {object}  types.User               "Successfully updated user"
+// @Failure      400  {object}  middleware.ErrorResponse "Bad Request - Invalid input or ID"
+// @Failure      404  {object}  middleware.ErrorResponse "Not Found - User not found"
+// @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /users/{id} [put]
 // Update handles the HTTP request to update an existing user.
 func Update(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())

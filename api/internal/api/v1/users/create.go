@@ -45,13 +45,21 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, found, err = repo.Companies().Get(r.Context(), payload.CompanyID)
-	if err != nil || !found {
+	if err != nil {
+		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !found {
 		middleware.WriteError(w, http.StatusBadRequest, "company not found")
 		return
 	}
 
 	_, found, err = repo.Addresses().Get(r.Context(), payload.AddressID)
-	if err != nil || !found {
+	if err != nil {
+		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !found {
 		middleware.WriteError(w, http.StatusBadRequest, "address not found")
 		return
 	}
