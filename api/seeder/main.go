@@ -65,7 +65,7 @@ func main() {
 	logger.Println("starting to seed data...")
 
 	// 1. Create an Address
-	addr := &types.Address{Line1: "123 Seed St", City: "Seedville", State: "SD", PostalCode: "54321"}
+	addr := &types.Address{Line1: "123 Seed St", City: "Seedville", State: "SD", PostalCode: "54321", Country: "USA"}
 	createdAddr, err := globalRepo.Addresses().Create(ctx, addr)
 	if err != nil {
 		logger.Fatalf("failed to create address: %v", err)

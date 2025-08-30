@@ -76,28 +76,6 @@ var _ = Describe("AddressRepo Integration", func() {
 		})
 	})
 
-	Context("Delete", func() {
-		It("should delete an existing address", func() {
-			// Create an address to delete
-			addr := &types.Address{Line1: "To Be Deleted Dr", City: "Old Town",
-				State:      "TS",
-				PostalCode: "12345",
-				Country:    "USA",
-				GlobalCode: "849VCWC8+R9"}
-			createdAddr, err := addressRepo.Create(ctx, addr)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Delete it
-			err = addressRepo.Delete(ctx, createdAddr.ID)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Try to get it again, it should not be found
-			_, found, err := addressRepo.Get(ctx, createdAddr.ID)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(found).To(BeFalse())
-		})
-	})
-
 	Context("Find", func() {
 		BeforeEach(func() {
 			// Seed the database with some addresses for find tests

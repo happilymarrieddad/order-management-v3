@@ -18,7 +18,7 @@ import (
 // @Failure      400 {object}  middleware.ErrorResponse "Bad Request - Invalid ID"
 // @Failure      404 {object}  middleware.ErrorResponse "Not Found - Location not found"
 // @Failure      500 {object}  middleware.ErrorResponse "Internal Server Error"
-// @Security     BearerAuth
+// @Security     AppTokenAuth
 // @Router       /locations/{id} [get]
 func Get(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())

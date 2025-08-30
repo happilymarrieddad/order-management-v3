@@ -23,6 +23,7 @@ type UsersRepo interface {
 	Delete(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, userID int64, newPassword string) error
 	UpdatePasswordTx(ctx context.Context, tx *xorm.Session, userID int64, newPassword string) error
+	GetIncludeInvisible(ctx context.Context, id int64) (*types.User, bool, error)
 }
 
 type usersRepo struct {
@@ -61,12 +62,13 @@ func (r *usersRepo) CreateTx(ctx context.Context, tx *xorm.Session, user *types.
 		return err
 	}
 	user.Password = string(hashedPassword)
+	user.Visible = true
 
 	_, err = tx.Context(ctx).Insert(user)
 	return err
 }
 
-// Delete removes a user from the database by their ID.
+// Delete performs a soft delete on a user.
 func (r *usersRepo) Delete(ctx context.Context, id int64) error {
 	_, err := wrapInSession(r.db, func(tx *xorm.Session) (*struct{}, error) {
 		return nil, r.DeleteTx(ctx, tx, id)
@@ -74,24 +76,32 @@ func (r *usersRepo) Delete(ctx context.Context, id int64) error {
 	return err
 }
 
-// DeleteTx removes a user from the database by their ID within a transaction.
+// DeleteTx performs a soft delete on a user by setting their visible flag to false.
 func (r *usersRepo) DeleteTx(ctx context.Context, tx *xorm.Session, id int64) error {
-	_, err := tx.Context(ctx).ID(id).Delete(&types.User{})
+	_, err := tx.Context(ctx).ID(id).Cols("visible").Update(&types.User{Visible: false})
 	return err
 }
 
-// Find retrieves a list of users with pagination and filtering, and a total count.
+// Find retrieves a list of visible users with pagination and filtering, and a total count.
 func (r *usersRepo) Find(ctx context.Context, opts *UserFindOpts) ([]*types.User, int64, error) {
 	s := r.db.NewSession().Context(ctx)
 	defer s.Close()
+	s.Where("visible = ?", true)
 	applyUserFindOpts(s, opts)
 	var users []*types.User
 	count, err := s.FindAndCount(&users)
 	return users, count, err
 }
 
-// Get retrieves a single user by their ID.
+// Get retrieves a single visible user by their ID.
 func (r *usersRepo) Get(ctx context.Context, id int64) (*types.User, bool, error) {
+	user := new(types.User)
+	has, err := r.db.Context(ctx).ID(id).Where("visible = ?", true).Get(user)
+	return user, has, err
+}
+
+// GetIncludeInvisible retrieves a single user by their ID, regardless of visibility.
+func (r *usersRepo) GetIncludeInvisible(ctx context.Context, id int64) (*types.User, bool, error) {
 	user := new(types.User)
 	has, err := r.db.Context(ctx).ID(id).Get(user)
 	return user, has, err

@@ -1,0 +1,10 @@
+{
+    "dev": {
+	    "host": "localhost",
+	    "user": "nick",
+	    "password" : "password",
+	    "database": "fusion",
+	    "driver": "mysql",
+	    "multipleStatements": true
+  	}
+}

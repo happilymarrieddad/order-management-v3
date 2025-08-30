@@ -37,6 +37,21 @@ services:
       - "8222:8222" # HTTP monitoring port
     restart: unless-stopped
 
+  mysql:
+    image: mysql:5.7
+    container_name: mysql_db
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=fusion
+      - MYSQL_USER=nick
+      - MYSQL_PASSWORD=password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
 volumes:
   postgres-data:
+    driver: local
+  mysql_data:
     driver: local

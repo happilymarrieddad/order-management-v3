@@ -34,6 +34,7 @@ type LocationsRepo interface {
 	DeleteTx(ctx context.Context, tx *xorm.Session, id int64) error
 	Find(ctx context.Context, opts *LocationFindOpts) ([]*types.Location, int64, error)
 	CountByCompanyID(ctx context.Context, companyID int64) (int64, error)
+	GetIncludeInvisible(ctx context.Context, id int64) (*types.Location, bool, error)
 }
 
 type locationsRepo struct {
@@ -59,11 +60,18 @@ func (r *locationsRepo) CreateTx(ctx context.Context, tx *xorm.Session, location
 	if exists {
 		return ErrLocationNameExists
 	}
+	location.Visible = true
 	_, err = tx.Context(ctx).Insert(location)
 	return err
 }
 
 func (r *locationsRepo) Get(ctx context.Context, id int64) (*types.Location, bool, error) {
+	location := new(types.Location)
+	has, err := r.db.Context(ctx).ID(id).Where("visible = ?", true).Get(location)
+	return location, has, err
+}
+
+func (r *locationsRepo) GetIncludeInvisible(ctx context.Context, id int64) (*types.Location, bool, error) {
 	location := new(types.Location)
 	has, err := r.db.Context(ctx).ID(id).Get(location)
 	return location, has, err
@@ -98,13 +106,14 @@ func (r *locationsRepo) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *locationsRepo) DeleteTx(ctx context.Context, tx *xorm.Session, id int64) error {
-	_, err := tx.Context(ctx).ID(id).Delete(new(types.Location))
+	_, err := tx.Context(ctx).ID(id).Cols("visible").Update(&types.Location{Visible: false})
 	return err
 }
 
 func (r *locationsRepo) Find(ctx context.Context, opts *LocationFindOpts) ([]*types.Location, int64, error) {
 	s := r.db.NewSession().Context(ctx)
 	defer s.Close()
+	s.Where("visible = ?", true)
 	applyLocationFindOpts(s, opts)
 	var locations []*types.Location
 	count, err := s.FindAndCount(&locations)
@@ -112,7 +121,7 @@ func (r *locationsRepo) Find(ctx context.Context, opts *LocationFindOpts) ([]*ty
 }
 
 func (r *locationsRepo) CountByCompanyID(ctx context.Context, companyID int64) (int64, error) {
-	count, err := r.db.Context(ctx).Where("company_id = ?", companyID).Count(new(types.Location))
+	count, err := r.db.Context(ctx).Where("company_id = ?", companyID).And("visible = ?", true).Count(new(types.Location))
 	return count, err
 }
 

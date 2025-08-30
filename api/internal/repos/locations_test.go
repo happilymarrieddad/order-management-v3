@@ -145,8 +145,8 @@ var _ = Describe("LocationsRepo", func() {
 		})
 	})
 
-	Describe("Delete", func() {
-		It("should delete a location successfully", func() {
+		Describe("Delete", func() {
+		It("should soft delete a location successfully", func() {
 			locationToDelete := &types.Location{
 				CompanyID: company.ID,
 				AddressID: address.ID,
@@ -161,6 +161,12 @@ var _ = Describe("LocationsRepo", func() {
 			_, found, err := repo.Get(ctx, locationToDelete.ID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(found).To(BeFalse())
+
+			// The location should be found with GetIncludeInvisible
+			invisibleLocation, found, err := repo.GetIncludeInvisible(ctx, locationToDelete.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+			Expect(invisibleLocation.Visible).To(BeFalse())
 		})
 	})
 

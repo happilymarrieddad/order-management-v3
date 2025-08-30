@@ -176,4 +176,40 @@ var _ = Describe("UsersRepo", func() {
 			}
 		})
 	})
+
+	Describe("Delete", func() {
+		var (
+			userToDelete *types.User
+		)
+
+		BeforeEach(func() {
+			userToDelete = &types.User{
+				CompanyID: company.ID,
+				Email:     "delete.me@example.com",
+				Password:  "password123",
+				AddressID: address.ID,
+				FirstName: "Delete",
+				LastName:  "Me",
+				Roles:     types.Roles{types.RoleUser},
+			}
+			err := repo.Create(ctx, userToDelete)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should soft delete a user", func() {
+			err := repo.Delete(ctx, userToDelete.ID)
+			Expect(err).NotTo(HaveOccurred())
+
+			// The user should not be found with Get
+			_, found, err := repo.Get(ctx, userToDelete.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeFalse())
+
+			// The user should be found with GetIncludeInvisible
+			invisibleUser, found, err := repo.GetIncludeInvisible(ctx, userToDelete.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+			Expect(invisibleUser.Visible).To(BeFalse())
+		})
+	})
 })

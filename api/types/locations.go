@@ -8,6 +8,7 @@ type Location struct {
 	CompanyID int64     `json:"companyId" xorm:"notnull 'company_id'"`
 	AddressID int64     `json:"addressId" xorm:"notnull 'address_id'"`
 	Name      string    `json:"name" xorm:"notnull 'name'"`
+	Visible   bool      `xorm:"'visible'" json:"-"`
 	CreatedAt time.Time `json:"createdAt" xorm:"created"`
 	UpdatedAt time.Time `json:"updatedAt" xorm:"updated"`
 

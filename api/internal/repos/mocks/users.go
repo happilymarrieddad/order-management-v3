@@ -147,6 +147,22 @@ func (mr *MockUsersRepoMockRecorder) GetByEmail(ctx, email any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByEmail", reflect.TypeOf((*MockUsersRepo)(nil).GetByEmail), ctx, email)
 }
 
+// GetIncludeInvisible mocks base method.
+func (m *MockUsersRepo) GetIncludeInvisible(ctx context.Context, id int64) (*types.User, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIncludeInvisible", ctx, id)
+	ret0, _ := ret[0].(*types.User)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetIncludeInvisible indicates an expected call of GetIncludeInvisible.
+func (mr *MockUsersRepoMockRecorder) GetIncludeInvisible(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIncludeInvisible", reflect.TypeOf((*MockUsersRepo)(nil).GetIncludeInvisible), ctx, id)
+}
+
 // Update mocks base method.
 func (m *MockUsersRepo) Update(ctx context.Context, user *types.User) error {
 	m.ctrl.T.Helper()

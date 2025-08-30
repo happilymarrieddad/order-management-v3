@@ -52,7 +52,9 @@ var _ = Describe("Find Locations Handler", func() {
 			findOpts := &repos.LocationFindOpts{Names: []string{"Non-existent"}}
 			body, _ := json.Marshal(findOpts)
 
-			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Eq(findOpts)).Return([]*types.Location{}, int64(0), nil)
+			// The handler will apply a default limit. The mock must expect this.
+			expectedOpts := &repos.LocationFindOpts{Names: []string{"Non-existent"}, Limit: 10}
+			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.Location{}, int64(0), nil)
 
 			req := createRequestWithRepo("POST", "/api/v1/locations/find", body, nil)
 			locations.Find(rr, req)

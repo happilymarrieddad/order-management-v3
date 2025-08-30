@@ -9,25 +9,30 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-const (
-	defaultLimit  = 10
-	defaultOffset = 0
-)
-
-// Find handles listing addresses with pagination.
+// @Summary      Find addresses
+// @Description  Finds addresses with optional filters and pagination by sending a JSON body.
+// @Tags         addresses
+// @Accept       json
+// @Produce      json
+// @Param        opts body      repos.AddressFindOpts true "Find options"
+// @Success      200  {object}  types.FindResult{data=[]types.Address} "A list of addresses"
+// @Failure      400  {object}  middleware.ErrorResponse "Bad Request"
+// @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /addresses/find [post]
 func Find(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
 
 	var opts repos.AddressFindOpts
-	// Ignore error, opts will be zero-valued if body is empty or malformed
-	_ = json.NewDecoder(r.Body).Decode(&opts)
-
-	// Apply defaults if not provided
-	if opts.Limit <= 0 {
-		opts.Limit = defaultLimit
+	// Decode the request body into the options struct
+	if err := json.NewDecoder(r.Body).Decode(&opts); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
 	}
-	if opts.Offset < 0 {
-		opts.Offset = defaultOffset
+
+	// Set default limit if none is provided or if it's invalid.
+	if opts.Limit <= 0 {
+		opts.Limit = 10
 	}
 
 	addresses, count, err := repo.Addresses().Find(r.Context(), &opts)

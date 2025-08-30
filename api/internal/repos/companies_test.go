@@ -91,8 +91,8 @@ var _ = Describe("CompanyRepo Integration", func() {
 		})
 	})
 
-	Context("Delete", func() {
-		It("should delete an existing company", func() {
+		Context("Delete", func() {
+		It("should soft delete an existing company", func() {
 			// Create a company to delete
 			addr := &types.Address{Line1: "3 Deletion Dr", City: "Goneville", State: "GV", Country: "USA", PostalCode: "98765"}
 			createdAddr, err := addressRepo.Create(ctx, addr)
@@ -110,6 +110,12 @@ var _ = Describe("CompanyRepo Integration", func() {
 			_, found, err := companyRepo.Get(ctx, company.ID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(found).To(BeFalse())
+
+			// The company should be found with GetIncludeInvisible
+			invisibleCompany, found, err := companyRepo.GetIncludeInvisible(ctx, company.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+			Expect(invisibleCompany.Visible).To(BeFalse())
 		})
 	})
 

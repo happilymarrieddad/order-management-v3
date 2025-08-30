@@ -23,7 +23,7 @@ import (
 // @Failure      400      {object}  middleware.ErrorResponse "Bad Request - Invalid input or ID"
 // @Failure      404      {object}  middleware.ErrorResponse "Not Found - Location or new address not found"
 // @Failure      500      {object}  middleware.ErrorResponse "Internal Server Error"
-// @Security     BearerAuth
+// @Security     AppTokenAuth
 // @Router       /locations/{id} [put]
 func Update(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())

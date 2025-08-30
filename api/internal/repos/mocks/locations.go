@@ -146,6 +146,22 @@ func (mr *MockLocationsRepoMockRecorder) Get(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockLocationsRepo)(nil).Get), ctx, id)
 }
 
+// GetIncludeInvisible mocks base method.
+func (m *MockLocationsRepo) GetIncludeInvisible(ctx context.Context, id int64) (*types.Location, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIncludeInvisible", ctx, id)
+	ret0, _ := ret[0].(*types.Location)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetIncludeInvisible indicates an expected call of GetIncludeInvisible.
+func (mr *MockLocationsRepoMockRecorder) GetIncludeInvisible(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIncludeInvisible", reflect.TypeOf((*MockLocationsRepo)(nil).GetIncludeInvisible), ctx, id)
+}
+
 // Update mocks base method.
 func (m *MockLocationsRepo) Update(ctx context.Context, location *types.Location) error {
 	m.ctrl.T.Helper()

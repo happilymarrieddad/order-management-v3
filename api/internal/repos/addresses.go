@@ -28,8 +28,6 @@ type AddressesRepo interface {
 	Get(ctx context.Context, id int64) (*types.Address, bool, error)
 	Update(ctx context.Context, address *types.Address) error
 	UpdateTx(ctx context.Context, tx *xorm.Session, address *types.Address) error
-	Delete(ctx context.Context, id int64) error
-	DeleteTx(ctx context.Context, tx *xorm.Session, id int64) error
 	Find(ctx context.Context, opts *AddressFindOpts) ([]*types.Address, int64, error)
 	GeocodeAddress(ctx context.Context, addr *types.Address) (string, error)
 }
@@ -77,18 +75,6 @@ func (r *addressesRepo) UpdateTx(ctx context.Context, tx *xorm.Session, address 
 		return err
 	}
 	_, err := tx.Context(ctx).ID(address.ID).Update(address)
-	return err
-}
-
-func (r *addressesRepo) Delete(ctx context.Context, id int64) error {
-	_, err := wrapInSession(r.db, func(tx *xorm.Session) (*struct{}, error) {
-		return nil, r.DeleteTx(ctx, tx, id)
-	})
-	return err
-}
-
-func (r *addressesRepo) DeleteTx(ctx context.Context, tx *xorm.Session, id int64) error {
-	_, err := tx.Context(ctx).ID(id).Delete(&types.Address{})
 	return err
 }
 

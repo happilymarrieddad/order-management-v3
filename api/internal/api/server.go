@@ -39,7 +39,7 @@ func Run(repo repos.GlobalRepo, logger *log.Logger) error {
 	// Create a subrouter for v1 of the API
 	v1Routes := api.PathPrefix("/v1").Subrouter()
 	// Delegate all v1 route definitions to the v1 package
-	v1.AddRoutes(v1Routes)
+	v1.AddAuthRoutes(v1Routes)
 
 	// --- Server Setup & Graceful Shutdown ---
 	serverAddr := ":8080"

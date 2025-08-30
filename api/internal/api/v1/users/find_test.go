@@ -14,42 +14,63 @@ import (
 )
 
 var _ = Describe("Find Users Handler", func() {
-	Context("with a valid request", func() {
-		It("should find users and return them with a total count", func() {
-			opts := repos.UserFindOpts{Limit: 10, Offset: 0, Emails: []string{"find@example.com"}}
-			body, _ := json.Marshal(opts)
+	Context("when users exist", func() {
+		It("should return a list of users with default pagination", func() {
+			foundUsers := []*types.User{
+				{ID: 1, Email: "a@b.com"},
+				{ID: 2, Email: "c@d.com"},
+			}
+			expectedOpts := &repos.UserFindOpts{Limit: 10, Offset: 0}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(foundUsers, int64(2), nil)
 
-			foundUsers := []*types.User{{ID: 1, Email: "find@example.com"}}
-			totalCount := int64(1)
-
-			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(foundUsers, totalCount, nil)
-
-			req := createRequestWithRepo("POST", "/api/v1/users/find", body, nil)
+			req := createRequestWithRepo("POST", "/api/v1/users/find", []byte(`{}`), nil)
 			users.Find(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
-			var response map[string]interface{}
-			json.Unmarshal(rr.Body.Bytes(), &response)
-
-			Expect(response).To(HaveKeyWithValue("total", float64(1))) // JSON numbers are float64
-			Expect(response["data"]).To(HaveLen(1))
+			var result types.FindResult
+			err := json.Unmarshal(rr.Body.Bytes(), &result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Total).To(Equal(int64(2)))
 		})
 
-		It("should return an empty data slice when no users are found", func() {
-			opts := repos.UserFindOpts{Emails: []string{"notfound@example.com"}}
+		It("should return a list of users with custom pagination", func() {
+			foundUsers := []*types.User{{ID: 3, Email: "e@f.com"}}
+			opts := &repos.UserFindOpts{Limit: 5, Offset: 5}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(opts)).Return(foundUsers, int64(1), nil)
+
+			body, _ := json.Marshal(opts)
+			req := createRequestWithRepo("POST", "/api/v1/users/find", body, nil)
+			users.Find(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusOK))
+
+			var result types.FindResult
+			err := json.Unmarshal(rr.Body.Bytes(), &result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Total).To(Equal(int64(1)))
+		})
+	})
+
+	Context("when no users exist", func() {
+		It("should return an empty list", func() {
+			opts := &repos.UserFindOpts{Emails: []string{"notfound@example.com"}}
 			body, _ := json.Marshal(opts)
 
-			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return([]*types.User{}, int64(0), nil)
+			// The handler should still apply default limits even for an empty result.
+			expectedOpts := &repos.UserFindOpts{Emails: []string{"notfound@example.com"}, Limit: 10}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.User{}, int64(0), nil)
 
 			req := createRequestWithRepo("POST", "/api/v1/users/find", body, nil)
 			users.Find(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
-			var response map[string]interface{}
-			json.Unmarshal(rr.Body.Bytes(), &response)
-			Expect(response).To(HaveKeyWithValue("total", float64(0)))
-			Expect(response["data"]).To(BeEmpty())
+
+			var result types.FindResult
+			err := json.Unmarshal(rr.Body.Bytes(), &result)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.Total).To(Equal(int64(0)))
+			Expect(result.Data).To(BeEmpty())
 		})
 	})
 
@@ -64,13 +85,10 @@ var _ = Describe("Find Users Handler", func() {
 
 	Context("when the repository encounters an error", func() {
 		It("should return 500 if the repository fails", func() {
-			opts := repos.UserFindOpts{}
-			body, _ := json.Marshal(opts)
 			dbErr := errors.New("find database error")
-
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
 
-			req := createRequestWithRepo("POST", "/api/v1/users/find", body, nil)
+			req := createRequestWithRepo("POST", "/api/v1/users/find", []byte(`{}`), nil)
 			users.Find(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))

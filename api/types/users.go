@@ -11,6 +11,7 @@ type User struct {
 	Password  string    `validate:"required,min=8" json:"-" xorm:"'password'"`
 	CompanyID int64     `validate:"required" json:"companyId" xorm:"notnull index 'company_id'"`
 	AddressID int64     `validate:"required" json:"addressId" xorm:"notnull index 'address_id'"`
+	Visible   bool      `xorm:"'visible'" json:"-"`
 	Roles     Roles     `json:"roles" xorm:"'roles'"`
 	CreatedAt time.Time `json:"createdAt" xorm:"created 'created_at'"`
 	UpdatedAt time.Time `json:"updatedAt" xorm:"updated 'updated_at'"`
