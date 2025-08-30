@@ -3,6 +3,8 @@ package types
 import "time"
 
 // ProductAttributeValue represents a specific value for a CommodityAttribute on a Product.
+//
+// It links a Product to a CommodityAttribute and stores the corresponding value.
 type ProductAttributeValue struct {
 	ID                   int64     `json:"id" xorm:"pk autoincr 'id'"`
 	ProductID            int64     `json:"productId" xorm:"notnull index 'product_id'"`

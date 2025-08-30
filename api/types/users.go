@@ -15,6 +15,9 @@ type User struct {
 	Roles     Roles     `json:"roles" xorm:"'roles'"`
 	CreatedAt time.Time `json:"createdAt" xorm:"created 'created_at'"`
 	UpdatedAt time.Time `json:"updatedAt" xorm:"updated 'updated_at'"`
+
+	// Relations
+	Address *Address `json:"address,omitempty" xorm:"-"`
 }
 
 // TableName specifies the table name for the User model.

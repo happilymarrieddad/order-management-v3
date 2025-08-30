@@ -14,6 +14,7 @@ To ensure our repository tests are consistent, isolated, and easy to understand,
 *   **No Test Consolidation**: Do not combine multiple test cases (`It` blocks) into a single one for the sake of brevity. Each test should remain granular and focus on a specific scenario. This is crucial for clarity and debugging.
 
 *   **Suite-Level Setup**: Global test setup (like initializing the database connection `db`, the global repository `gr`, and the context `ctx`) and cleanup (like truncating tables between tests) is handled in the `_suite_test.go` file for the package. Individual test files should not need to repeat this logic.
+    *   When adding a new repository, ensure its corresponding table is included in the `TRUNCATE TABLE ... RESTART IDENTITY CASCADE` statement within the `BeforeEach` block of `repos_suite_test.go` to maintain proper test isolation and prevent data conflicts between tests.
 
 ### Handler (API) Test Conventions
 
@@ -36,6 +37,8 @@ To ensure our API handler tests are robust and consistent, please follow these c
     *   Invalid request bodies (malformed JSON, missing required fields, validation errors like mismatched passwords).
     *   Dependency failures (e.g., trying to create a user for a `company_id` that doesn't exist).
     *   Repository errors (simulating database failures like unique constraint violations).
+    *   For public endpoints, ensure tests cover non-happy path scenarios such as unsupported HTTP methods, and verify appropriate error responses (e.g., 405 Method Not Allowed).
+*   **Individual Test Files**: Each test file (e.g., `create_test.go`, `get_test.go`) should contain specific test cases for a handler, and may include its own helper functions (like `createRequest`, `executeRequest`) if those helpers are specific to that test file's context.
 
 *   **JSON Payload Casing**: Pay close attention to JSON key casing in test payloads. This project uses **`snake_case`**. Mismatched casing will cause validation to fail and result in `400 Bad Request` errors.
 
@@ -86,3 +89,14 @@ To teach XORM how to handle a custom type, the type must implement two methods:
     *Example*: Converting a `[]Role` slice into the string `"{admin,user}"` and returning it as `[]byte`.
 
 A complete example of this pattern can be found in `types/roles.go`. Please follow this convention for any new types that require custom database serialization.
+
+## Interaction Guidelines
+
+*   **Test Execution**: Do not ask to run tests after making changes. Assume tests will be run by the user or as part of a separate verification step.
+
+## Lessons Learned
+
+*   **Windows `make` commands**: When running `make` commands on Windows, `make` might not be directly available. Instead, use `powershell.exe -File scripts/migrate.ps1 <command>` for migration-related tasks, or execute the underlying `goose` commands directly with all necessary arguments (e.g., `goose -dir db/migrations <command>`).
+*   **`goose create` command**: Always use the `-dir db/migrations` flag when creating new migration files (e.g., `goose -dir db/migrations create <name> sql`) to ensure they are placed in the correct directory and picked up by the migration tool.
+*   **XORM `extends` and JSON tag conflicts**: When using XORM's `extends` tag to embed structs, be aware of potential JSON tag conflicts if both embedded structs have fields with the same JSON tag (e.g., `json:"id"`). Resolve this by adding `json:"-"` to the conflicting field in the embedded struct within the composite struct (e.g., `types.Address `xorm:"extends" json:"-"`). This tells the JSON marshaller to ignore that specific field during serialization.
+*   **Testing `unknown` / Zero-Value Enum Constants**: When creating API endpoints that return lists of enum values (e.g., `AllRoles()`, `AllCommodityTypes()`), ensure that `unknown` or zero-value constants are *not* included in the returned list unless they represent a valid, selectable option for the user. Update tests to reflect this expectation, as these values are often internal representations and not meant for external consumption.

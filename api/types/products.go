@@ -8,6 +8,7 @@ type Product struct {
 	CommodityID int64     `json:"commodityId" xorm:"notnull index 'commodity_id'"`
 	CompanyID   int64     `json:"companyId" xorm:"notnull index 'company_id'"`
 	Name        string    `json:"name" xorm:"'name'"`         // Derived name for the product
+	Visible     bool      `xorm:"'visible'" json:"-"`
 	CreatedAt   time.Time `json:"createdAt" xorm:"created 'created_at'"`
 	UpdatedAt   time.Time `json:"updatedAt" xorm:"updated 'updated_at'"`
 }

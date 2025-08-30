@@ -56,6 +56,13 @@ var _ = Describe("LocationsRepo", func() {
 			Expect(found).To(BeTrue())
 			Expect(retrieved.Name).To(Equal("Main Warehouse"))
 			Expect(retrieved.CompanyID).To(Equal(company.ID))
+			Expect(retrieved.Address).NotTo(BeNil())
+			Expect(retrieved.Address.ID).To(Equal(address.ID))
+			Expect(retrieved.Address.Line1).To(Equal(address.Line1))
+			Expect(retrieved.Address.City).To(Equal(address.City))
+			Expect(retrieved.Address.State).To(Equal(address.State))
+			Expect(retrieved.Address.Country).To(Equal(address.Country))
+			Expect(retrieved.Address.PostalCode).To(Equal(address.PostalCode))
 		})
 
 		It("should fail to create a location with a duplicate name for the same company", func() {

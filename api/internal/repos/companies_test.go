@@ -45,6 +45,13 @@ var _ = Describe("CompanyRepo Integration", func() {
 			Expect(fetchedCompany).NotTo(BeNil())
 			Expect(fetchedCompany.ID).To(Equal(newCompany.ID))
 			Expect(fetchedCompany.Name).To(Equal("TestCo"))
+			Expect(fetchedCompany.Address).NotTo(BeNil())
+			Expect(fetchedCompany.Address.ID).To(Equal(createdAddr.ID))
+			Expect(fetchedCompany.Address.Line1).To(Equal(addr.Line1))
+			Expect(fetchedCompany.Address.City).To(Equal(addr.City))
+			Expect(fetchedCompany.Address.State).To(Equal(addr.State))
+			Expect(fetchedCompany.Address.Country).To(Equal(addr.Country))
+			Expect(fetchedCompany.Address.PostalCode).To(Equal(addr.PostalCode))
 		})
 
 		It("should return not found for a non-existent company ID", func() {

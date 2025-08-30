@@ -3,6 +3,7 @@ package companies
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
@@ -40,6 +41,11 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := repo.Companies().Create(r.Context(), company); err != nil {
+		// Check for duplicate key error
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			middleware.WriteError(w, http.StatusConflict, "Company with this name already exists")
+			return
+		}
 		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

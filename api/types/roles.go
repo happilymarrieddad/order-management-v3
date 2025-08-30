@@ -99,3 +99,11 @@ func (r Roles) HasRole(role Role) bool {
 	}
 	return false
 }
+
+// AllRoles returns a slice of all defined Role constants.
+func AllRoles() []Role {
+	return []Role{
+		RoleAdmin,
+		RoleUser,
+	}
+}

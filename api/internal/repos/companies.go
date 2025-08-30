@@ -50,10 +50,30 @@ func (r *companiesRepo) CreateTx(ctx context.Context, tx *xorm.Session, company 
 	return err
 }
 
+type CompanyWithAddress struct {
+	types.Company `xorm:"extends"`
+	types.Address `xorm:"extends" json:"-"`
+}
+
 func (r *companiesRepo) Get(ctx context.Context, id int64) (*types.Company, bool, error) {
-	company := new(types.Company)
-	has, err := r.db.Context(ctx).ID(id).Where("visible = ?", true).Get(company)
-	return company, has, err
+	companyWithAddress := new(CompanyWithAddress)
+	has, err := r.db.Context(ctx).Table("companies").
+		Where("companies.id = ?", id).
+		Where("companies.visible = ?", true).
+		Join("INNER", "addresses", "addresses.id = companies.address_id").
+		Get(companyWithAddress)
+
+	if err != nil {
+		return nil, false, err
+	}
+	if !has {
+		return nil, false, nil
+	}
+
+	company := &companyWithAddress.Company
+	company.Address = &companyWithAddress.Address
+
+	return company, true, nil
 }
 
 func (r *companiesRepo) GetIncludeInvisible(ctx context.Context, id int64) (*types.Company, bool, error) {

@@ -31,3 +31,10 @@ func ParseCommodityType(s string) (CommodityType, error) {
 		return CommodityTypeUnknown, fmt.Errorf("unknown commodity type: %s", s)
 	}
 }
+
+// AllCommodityTypes returns a slice of all defined CommodityType constants.
+func AllCommodityTypes() []CommodityType {
+	return []CommodityType{
+		CommodityTypeProduce,
+	}
+}

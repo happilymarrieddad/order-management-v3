@@ -94,10 +94,31 @@ func (r *usersRepo) Find(ctx context.Context, opts *UserFindOpts) ([]*types.User
 }
 
 // Get retrieves a single visible user by their ID.
+type UserWithAddress struct {
+	types.User    `xorm:"extends"`
+	types.Address `xorm:"extends" json:"-"`
+}
+
+// Get retrieves a single visible user by their ID.
 func (r *usersRepo) Get(ctx context.Context, id int64) (*types.User, bool, error) {
-	user := new(types.User)
-	has, err := r.db.Context(ctx).ID(id).Where("visible = ?", true).Get(user)
-	return user, has, err
+	userWithAddress := new(UserWithAddress)
+	has, err := r.db.Context(ctx).Table("users").
+		Where("users.id = ?", id).
+		Where("users.visible = ?", true).
+		Join("INNER", "addresses", "addresses.id = users.address_id").
+		Get(userWithAddress)
+
+	if err != nil {
+		return nil, false, err
+	}
+	if !has {
+		return nil, false, nil
+	}
+
+	user := &userWithAddress.User
+	user.Address = &userWithAddress.Address
+
+	return user, true, nil
 }
 
 // GetIncludeInvisible retrieves a single user by their ID, regardless of visibility.

@@ -2,7 +2,9 @@ package v1
 
 import (
 	"github.com/gorilla/mux"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodityattributes"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/companies"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/locations"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
@@ -23,7 +25,7 @@ func AddAuthRoutes(r *mux.Router) {
 
 	// Create a subrouter for the /companies resource.
 	companiesRouter := r.PathPrefix("/companies").Subrouter()
-	companiesRouter.HandleFunc("", companies.Create).Methods("POST")
+	companiesRouter.HandleFunc("", middleware.AuthUserAdminRequired(companies.Create)).Methods("POST")
 	companiesRouter.HandleFunc("/find", companies.Find).Methods("GET")
 	companiesRouter.HandleFunc("/{id:[0-9]+}", companies.Get).Methods("GET")
 	companiesRouter.HandleFunc("/{id:[0-9]+}", companies.Update).Methods("PUT")
@@ -43,4 +45,12 @@ func AddAuthRoutes(r *mux.Router) {
 	locationsRouter.HandleFunc("/{id:[0-9]+}", locations.Get).Methods("GET")
 	locationsRouter.HandleFunc("/{id:[0-9]+}", locations.Update).Methods("PUT")
 	locationsRouter.HandleFunc("/{id:[0-9]+}", locations.Delete).Methods("DELETE")
+
+	// Create a subrouter for the /commodity-attributes resource.
+	commodityAttributesRouter := r.PathPrefix("/commodity-attributes").Subrouter()
+	commodityAttributesRouter.HandleFunc("", middleware.AuthUserAdminRequired(commodityattributes.Create)).Methods("POST")
+	commodityAttributesRouter.HandleFunc("/find", middleware.AuthUserAdminRequired(commodityattributes.Find)).Methods("POST")
+	commodityAttributesRouter.HandleFunc("/{id:[0-9]+}", middleware.AuthUserAdminRequired(commodityattributes.Get)).Methods("GET")
+	commodityAttributesRouter.HandleFunc("/{id:[0-9]+}", middleware.AuthUserAdminRequired(commodityattributes.Update)).Methods("PUT")
+
 }

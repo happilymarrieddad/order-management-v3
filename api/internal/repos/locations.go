@@ -65,10 +65,30 @@ func (r *locationsRepo) CreateTx(ctx context.Context, tx *xorm.Session, location
 	return err
 }
 
+type LocationWithAddress struct {
+	types.Location `xorm:"extends"`
+	types.Address  `xorm:"extends" json:"-"`
+}
+
 func (r *locationsRepo) Get(ctx context.Context, id int64) (*types.Location, bool, error) {
-	location := new(types.Location)
-	has, err := r.db.Context(ctx).ID(id).Where("visible = ?", true).Get(location)
-	return location, has, err
+	locationWithAddress := new(LocationWithAddress)
+	has, err := r.db.Context(ctx).Table("locations").
+		Where("locations.id = ?", id).
+		Where("locations.visible = ?", true).
+		Join("INNER", "addresses", "addresses.id = locations.address_id").
+		Get(locationWithAddress)
+
+	if err != nil {
+		return nil, false, err
+	}
+	if !has {
+		return nil, false, nil
+	}
+
+	location := &locationWithAddress.Location
+	location.Address = &locationWithAddress.Address
+
+	return location, true, nil
 }
 
 func (r *locationsRepo) GetIncludeInvisible(ctx context.Context, id int64) (*types.Location, bool, error) {

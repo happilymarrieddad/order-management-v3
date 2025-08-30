@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -119,6 +120,38 @@ var _ = Describe("AuthMiddleware", func() {
 			middleware.AuthMiddleware(nextHandler).ServeHTTP(rr, req)
 			Expect(wasCalled).To(BeFalse())
 			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+		})
+	})
+
+	Context("GetUserIDFromContext and AddUserIDToContext", func() {
+		It("should correctly add and retrieve a user ID from context", func() {
+			var testUserID int64 = 456
+			ctx := context.Background()
+
+			// Add user ID to context
+			ctxWithUserID := middleware.AddUserIDToContext(ctx, testUserID)
+
+			// Retrieve user ID from context
+			retrievedUserID, found := middleware.GetUserIDFromContext(ctxWithUserID)
+
+			Expect(found).To(BeTrue())
+			Expect(retrievedUserID).To(Equal(testUserID))
+		})
+
+		It("should return false and zero value if user ID is not found in context", func() {
+			ctx := context.Background()
+			retrievedUserID, found := middleware.GetUserIDFromContext(ctx)
+
+			Expect(found).To(BeFalse())
+			Expect(retrievedUserID).To(BeZero())
+		})
+
+		It("should return false and zero value if user ID is of wrong type in context", func() {
+			ctx := context.WithValue(context.Background(), middleware.UserIDKey, "not-an-int64")
+			retrievedUserID, found := middleware.GetUserIDFromContext(ctx)
+
+			Expect(found).To(BeFalse())
+			Expect(retrievedUserID).To(BeZero())
 		})
 	})
 })

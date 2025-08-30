@@ -61,6 +61,13 @@ var _ = Describe("UsersRepo", func() {
 			Expect(retrievedUser.FirstName).To(Equal(user.FirstName))
 			Expect(retrievedUser.LastName).To(Equal(user.LastName))
 			Expect(retrievedUser.Roles).To(Equal(types.Roles{types.RoleUser}))
+			Expect(retrievedUser.Address).NotTo(BeNil())
+			Expect(retrievedUser.Address.ID).To(Equal(address.ID))
+			Expect(retrievedUser.Address.Line1).To(Equal(address.Line1))
+			Expect(retrievedUser.Address.City).To(Equal(address.City))
+			Expect(retrievedUser.Address.State).To(Equal(address.State))
+			Expect(retrievedUser.Address.Country).To(Equal(address.Country))
+			Expect(retrievedUser.Address.PostalCode).To(Equal(address.PostalCode))
 		})
 
 		It("should create a new user with multiple roles", func() {

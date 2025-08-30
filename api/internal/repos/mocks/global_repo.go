@@ -54,6 +54,20 @@ func (mr *MockGlobalRepoMockRecorder) Addresses() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Addresses", reflect.TypeOf((*MockGlobalRepo)(nil).Addresses))
 }
 
+// CommodityAttributes mocks base method.
+func (m *MockGlobalRepo) CommodityAttributes() repos.CommodityAttributesRepo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CommodityAttributes")
+	ret0, _ := ret[0].(repos.CommodityAttributesRepo)
+	return ret0
+}
+
+// CommodityAttributes indicates an expected call of CommodityAttributes.
+func (mr *MockGlobalRepoMockRecorder) CommodityAttributes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommodityAttributes", reflect.TypeOf((*MockGlobalRepo)(nil).CommodityAttributes))
+}
+
 // Companies mocks base method.
 func (m *MockGlobalRepo) Companies() repos.CompaniesRepo {
 	m.ctrl.T.Helper()

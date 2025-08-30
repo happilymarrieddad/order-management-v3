@@ -54,7 +54,9 @@ var _ = Describe("Create Company Handler", func() {
 			body := []byte(`{"name": "bad json",`)
 			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
 			companies.Create(rr, req)
+
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("invalid request body"))
 		})
 
 		It("should return 400 for a missing required field (name)", func() {
@@ -63,6 +65,7 @@ var _ = Describe("Create Company Handler", func() {
 			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
 			companies.Create(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("Key: 'CreateCompanyPayload.Name' Error:Field validation for 'Name' failed on the 'required' tag"))
 		})
 
 		It("should return 400 for a missing required field (address_id)", func() {
@@ -70,7 +73,9 @@ var _ = Describe("Create Company Handler", func() {
 			body, _ := json.Marshal(createPayload)
 			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
 			companies.Create(rr, req)
+
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("Key: 'CreateCompanyPayload.AddressID' Error:Field validation for 'AddressID' failed on the 'required' tag"))
 		})
 	})
 
@@ -86,6 +91,20 @@ var _ = Describe("Create Company Handler", func() {
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
 			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+		})
+
+		It("should return 409 Conflict for a duplicate company name", func() {
+			body, _ := json.Marshal(createPayload)
+			// Simulate a unique constraint violation error
+			uniqueConstraintErr := errors.New(`pq: duplicate key value violates unique constraint "companies_name_key"`)
+
+			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(uniqueConstraintErr)
+
+			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
+			companies.Create(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusConflict))
+			Expect(rr.Body.String()).To(ContainSubstring("Company with this name already exists"))
 		})
 	})
 })

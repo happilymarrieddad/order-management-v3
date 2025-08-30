@@ -13,6 +13,8 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/onsi/ginkgo/v2 v2.25.1
 	github.com/onsi/gomega v1.38.2
+	github.com/swaggo/http-swagger v1.3.4
+	github.com/swaggo/swag v1.16.6
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.41.0
 	googlemaps.github.io/maps v1.7.0
@@ -22,8 +24,6 @@ require (
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/PuerkitoBio/purell v1.2.1 // indirect
-	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -50,8 +50,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
-	github.com/swaggo/http-swagger v1.3.4 // indirect
-	github.com/swaggo/swag v1.16.6 // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
 	go.opencensus.io v0.22.3 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
@@ -63,7 +61,6 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	golang.org/x/tools v0.36.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	xorm.io/builder v0.3.11-0.20220531020008-1bd24a7dc978 // indirect
 )
