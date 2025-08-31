@@ -235,6 +235,237 @@ const docTemplate = `{
                 }
             }
         },
+        "/commodities": {
+            "post": {
+                "security": [
+                    {
+                        "AppTokenAuth": []
+                    }
+                ],
+                "description": "Creates a new commodity.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "commodities"
+                ],
+                "summary": "Create a new commodity",
+                "parameters": [
+                    {
+                        "description": "Commodity Creation Payload",
+                        "name": "commodity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/commodities.CreateCommodityPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created commodity",
+                        "schema": {
+                            "$ref": "#/definitions/types.Commodity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request - Invalid input or validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/commodities/find": {
+            "post": {
+                "security": [
+                    {
+                        "AppTokenAuth": []
+                    }
+                ],
+                "description": "Finds commodities with optional filters and pagination by sending a JSON body.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "commodities"
+                ],
+                "summary": "Find commodities",
+                "parameters": [
+                    {
+                        "description": "Find options",
+                        "name": "opts",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/repos.FindCommoditiesOptions"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A list of commodities",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/types.FindResult"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/types.Commodity"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/commodities/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "AppTokenAuth": []
+                    }
+                ],
+                "description": "Retrieves the details of a single commodity.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "commodities"
+                ],
+                "summary": "Get a commodity by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Commodity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved commodity",
+                        "schema": {
+                            "$ref": "#/definitions/types.Commodity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request - Invalid ID",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found - Commodity not found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "AppTokenAuth": []
+                    }
+                ],
+                "description": "Updates an existing commodity by ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "commodities"
+                ],
+                "summary": "Update a commodity",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Commodity ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Commodity Update Payload",
+                        "name": "commodity",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/commodities.UpdateCommodityPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated commodity",
+                        "schema": {
+                            "$ref": "#/definitions/types.Commodity"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request - Invalid input or validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found - Commodity not found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/commodity-attributes": {
             "post": {
                 "description": "Creates a new commodity attribute with the provided details.",
@@ -286,6 +517,72 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict - Duplicate attribute name",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/commodity-attributes/find": {
+            "post": {
+                "security": [
+                    {
+                        "AppTokenAuth": []
+                    }
+                ],
+                "description": "Finds commodity attributes with optional filters and pagination by sending a JSON body.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "commodity-attributes"
+                ],
+                "summary": "Find commodity attributes",
+                "parameters": [
+                    {
+                        "description": "Find options",
+                        "name": "opts",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/repos.CommodityAttributeFindOpts"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A list of commodity attributes",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/types.FindResult"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/types.CommodityAttribute"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -1376,6 +1673,48 @@ const docTemplate = `{
                 }
             }
         },
+        "commodities.CreateCommodityPayload": {
+            "type": "object",
+            "required": [
+                "commodity_type",
+                "name"
+            ],
+            "properties": {
+                "commodity_type": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.CommodityType"
+                        }
+                    ],
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Apple"
+                }
+            }
+        },
+        "commodities.UpdateCommodityPayload": {
+            "type": "object",
+            "required": [
+                "commodity_type",
+                "name"
+            ],
+            "properties": {
+                "commodity_type": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.CommodityType"
+                        }
+                    ],
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Orange"
+                }
+            }
+        },
         "commodityattributes.CreateCommodityAttributePayload": {
             "type": "object",
             "required": [
@@ -1384,7 +1723,14 @@ const docTemplate = `{
             ],
             "properties": {
                 "commodityType": {
-                    "$ref": "#/definitions/types.CommodityType"
+                    "enum": [
+                        1
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.CommodityType"
+                        }
+                    ]
                 },
                 "name": {
                     "type": "string",
@@ -1401,7 +1747,14 @@ const docTemplate = `{
             ],
             "properties": {
                 "commodityType": {
-                    "$ref": "#/definitions/types.CommodityType"
+                    "enum": [
+                        1
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.CommodityType"
+                        }
+                    ]
                 },
                 "name": {
                     "type": "string",
@@ -1510,11 +1863,60 @@ const docTemplate = `{
                 }
             }
         },
+        "repos.CommodityAttributeFindOpts": {
+            "type": "object",
+            "properties": {
+                "commodityTypes": {
+                    "description": "For IN query",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.CommodityType"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                }
+            }
+        },
         "repos.CompanyFindOpts": {
             "type": "object",
             "properties": {
                 "limit": {
                     "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                }
+            }
+        },
+        "repos.FindCommoditiesOptions": {
+            "type": "object",
+            "properties": {
+                "commodityType": {
+                    "$ref": "#/definitions/types.CommodityType"
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "offset": {
                     "type": "integer"
@@ -1622,6 +2024,29 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                }
+            }
+        },
+        "types.Commodity": {
+            "type": "object",
+            "properties": {
+                "commodityType": {
+                    "$ref": "#/definitions/types.CommodityType"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "visible": {
+                    "type": "boolean"
                 }
             }
         },

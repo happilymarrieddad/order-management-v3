@@ -31,6 +31,40 @@ This repository contains a RESTful API for a complex order management system, bu
 └── Makefile.mk         # Make commands for development
 ```
 
+## Data Model
+
+The API revolves around a few core concepts that define how products are categorized and described, as well as fundamental entities for managing users, companies, and locations.
+
+*   **`User`**: Represents an individual user of the system, associated with a `Company` and an `Address`. Users have roles that define their permissions.
+*   **`Company`**: Represents an organization within the system, associated with an `Address`. Companies own products, locations, and users.
+*   **`Address`**: A reusable entity for storing physical addresses, used by `Users`, `Companies`, and `Locations`.
+*   **`Location`**: Represents a specific physical location (e.g., a warehouse, office) belonging to a `Company`, and linked to an `Address`.
+
+*   **`Commodity`**: This is the most general classification. It represents a fundamental good, like "Potatoes" or "Apples". It has a `CommodityType`, such as "Produce".
+*   **`CommodityAttribute`**: This defines a *property* that a `Commodity` can have. For example, attributes for the "Produce" type could be "Color", "Size", or "Grade". These attributes are linked to the `CommodityType`, not to a specific `Commodity`.
+*   **`Product`**: This is a *specific, sellable item* that belongs to a `Company`. It's an instance of a `Commodity`. For example, a `Product` could be "Organic Russet Potatoes" which is a `Commodity` of "Potatoes", sold by a specific `Company`.
+*   **`ProductAttributeValue`**: This is where the concepts connect. It assigns a specific `Value` to a `CommodityAttribute` for a particular `Product`.
+
+### Example Flow
+
+1.  You start with a **`Commodity`**:
+    *   `Name`: "Apple"
+    *   `CommodityType`: `Produce`
+
+2.  You define **`CommodityAttribute`**s for the `Produce` type:
+    *   `Name`: "Variety"
+    *   `Name`: "Color"
+
+3.  A `Company` creates a **`Product`**:
+    *   It's linked to the "Apple" `Commodity`.
+    *   The `Company` gives it a descriptive name, like "Fresh Granny Smith Apples".
+
+4.  Finally, you use **`ProductAttributeValue`** to describe this specific `Product`:
+    *   **Value 1**: Links the `Product` to the "Variety" `CommodityAttribute` with the value "Granny Smith".
+    *   **Value 2**: Links the `Product` to the "Color" `CommodityAttribute` with the value "Green".
+
+This structure allows for a flexible and detailed product catalog where general commodities can be customized with specific attributes for different products sold by different companies.
+
 ## Prerequisites
 
 - **Go**: Version 1.21 or later
@@ -56,7 +90,7 @@ The application is configured using environment variables. Copy the sample file 
 cp .env.sample .env
 ```
 
-You will need to edit the `.env` file to provide a `JWT_SECRET` and a valid `GOOGLE_MAPS_API_KEY`.
+You will need to edit the `.env` file to provide a `JWT_SECRET` and a valid `GOOGLE_MAPS_API_KEY`. The Google Maps API Key is used for geocoding addresses.
 
 ### 3. Start Databases
 

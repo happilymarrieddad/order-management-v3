@@ -6,7 +6,7 @@ install.deps:
 	go install github.com/pressly/goose/v3/cmd/goose@latest
 
 test:
-	ginkgo -r --randomize-all --randomize-suites --fail-on-pending --cover --trace --race --progress
+	ginkgo -r -v --fail-fast --randomize-all
 
 db.seed: db.migrate.up
 	go run tools/seed.go

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodityattributes"
@@ -146,6 +147,44 @@ var _ = Describe("Create Commodity Attribute Handler", func() {
 			commodityattributes.Create(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Context("with invalid field values", func() {
+		BeforeEach(func() {
+			// Mock the user lookup to return an admin user for this context
+			adminUser := &types.User{ID: 1, Roles: types.Roles{types.RoleAdmin}}
+			mockUsersRepo.EXPECT().Get(gomock.Any(), adminUser.ID).Return(adminUser, true, nil).AnyTimes()
+		})
+
+		It("should return 400 if the name is too short", func() {
+			createPayload["name"] = "a"
+			body, _ := json.Marshal(createPayload)
+			req := createRequestWithRepo("POST", "/api/v1/commodity-attributes", body, nil, 1)
+			commodityattributes.Create(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("failed on the 'min' tag"))
+		})
+
+		It("should return 400 if the name is too long", func() {
+			createPayload["name"] = strings.Repeat("a", 256)
+			body, _ := json.Marshal(createPayload)
+			req := createRequestWithRepo("POST", "/api/v1/commodity-attributes", body, nil, 1)
+			commodityattributes.Create(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("failed on the 'max' tag"))
+		})
+
+		It("should return 400 for an invalid commodityType value", func() {
+			createPayload["commodityType"] = 999 // Invalid enum value
+			body, _ := json.Marshal(createPayload)
+			req := createRequestWithRepo("POST", "/api/v1/commodity-attributes", body, nil, 1)
+			commodityattributes.Create(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("failed on the 'oneof' tag"))
 		})
 	})
 

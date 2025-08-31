@@ -16,6 +16,8 @@ To ensure our repository tests are consistent, isolated, and easy to understand,
 *   **Suite-Level Setup**: Global test setup (like initializing the database connection `db`, the global repository `gr`, and the context `ctx`) and cleanup (like truncating tables between tests) is handled in the `_suite_test.go` file for the package. Individual test files should not need to repeat this logic.
     *   When adding a new repository, ensure its corresponding table is included in the `TRUNCATE TABLE ... RESTART IDENTITY CASCADE` statement within the `BeforeEach` block of `repos_suite_test.go` to maintain proper test isolation and prevent data conflicts between tests.
 
+*   **Default to Visible**: For repositories that have a `visible` column, the standard `Get` and `Find` methods should, by default, only return records where `visible = true`. Provide a separate method (e.g., `GetIncludeInvisible`) for cases where non-visible records need to be accessed.
+
 ### Handler (API) Test Conventions
 
 To ensure our API handler tests are robust and consistent, please follow these conventions:
@@ -40,7 +42,15 @@ To ensure our API handler tests are robust and consistent, please follow these c
     *   For public endpoints, ensure tests cover non-happy path scenarios such as unsupported HTTP methods, and verify appropriate error responses (e.g., 405 Method Not Allowed).
 *   **Individual Test Files**: Each test file (e.g., `create_test.go`, `get_test.go`) should contain specific test cases for a handler, and may include its own helper functions (like `createRequest`, `executeRequest`) if those helpers are specific to that test file's context.
 
-*   **JSON Payload Casing**: Pay close attention to JSON key casing in test payloads. This project uses **`snake_case`**. Mismatched casing will cause validation to fail and result in `400 Bad Request` errors.
+*   **JSON Payload Casing**: Pay close attention to JSON key casing in *all* JSON payloads (request and response). This project uses **`snake_case`**. Mismatched casing will cause validation to fail and result in `400 Bad Request` errors.
+
+### Error Handling Conventions
+
+*   **Standardized Error Responses**: Always use `middleware.WriteError(w, http.Status, message)` to send error responses to ensure consistency in format and status codes across the API.
+
+### Dependency Validation
+
+*   **Validate Related Entities**: Before creating or updating entities that have foreign key relationships (e.g., a `User` requiring a `Company` and `Address`), always validate that the related entities exist. Return appropriate `400 Bad Request` or `404 Not Found` errors if dependencies are not met.
 
 ## API Documentation (Swagger)
 
@@ -66,6 +76,10 @@ This project uses swaggo/swag to automatically generate interactive API document
     ```sh
     swag init -g docs/docs.go
     ```
+
+### Data Model Documentation
+When significant changes or additions are made to the core data models (e.g., `types` structs and their relationships), update the 'Data Model' section in `README.md` to reflect these changes. This ensures the high-level documentation stays in sync with the evolving database schema and type definitions.
+
 *   **Populate All Required Fields**: When creating test data (e.g., `&types.User{...}`), ensure all required fields as defined by the struct and database schema are populated. Missing fields will cause validation or database errors during tests.
 
 ### A Note on Package Structure
@@ -100,3 +114,4 @@ A complete example of this pattern can be found in `types/roles.go`. Please foll
 *   **`goose create` command**: Always use the `-dir db/migrations` flag when creating new migration files (e.g., `goose -dir db/migrations create <name> sql`) to ensure they are placed in the correct directory and picked up by the migration tool.
 *   **XORM `extends` and JSON tag conflicts**: When using XORM's `extends` tag to embed structs, be aware of potential JSON tag conflicts if both embedded structs have fields with the same JSON tag (e.g., `json:"id"`). Resolve this by adding `json:"-"` to the conflicting field in the embedded struct within the composite struct (e.g., `types.Address `xorm:"extends" json:"-"`). This tells the JSON marshaller to ignore that specific field during serialization.
 *   **Testing `unknown` / Zero-Value Enum Constants**: When creating API endpoints that return lists of enum values (e.g., `AllRoles()`, `AllCommodityTypes()`), ensure that `unknown` or zero-value constants are *not* included in the returned list unless they represent a valid, selectable option for the user. Update tests to reflect this expectation, as these values are often internal representations and not meant for external consumption.
+*   **Enum Constant Usage**: When using enum constants (like `types.CommodityType`), always verify the available constants by checking the corresponding `types` package file (e.g., `types/commodity_types.go`). Do not assume the existence of a constant without explicit definition.

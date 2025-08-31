@@ -40,10 +40,39 @@ definitions:
         example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         type: string
     type: object
+  commodities.CreateCommodityPayload:
+    properties:
+      commodity_type:
+        allOf:
+        - $ref: '#/definitions/types.CommodityType'
+        example: 1
+      name:
+        example: Apple
+        type: string
+    required:
+    - commodity_type
+    - name
+    type: object
+  commodities.UpdateCommodityPayload:
+    properties:
+      commodity_type:
+        allOf:
+        - $ref: '#/definitions/types.CommodityType'
+        example: 1
+      name:
+        example: Orange
+        type: string
+    required:
+    - commodity_type
+    - name
+    type: object
   commodityattributes.CreateCommodityAttributePayload:
     properties:
       commodityType:
-        $ref: '#/definitions/types.CommodityType'
+        allOf:
+        - $ref: '#/definitions/types.CommodityType'
+        enum:
+        - 1
       name:
         maxLength: 255
         minLength: 2
@@ -55,7 +84,10 @@ definitions:
   commodityattributes.UpdateCommodityAttributePayload:
     properties:
       commodityType:
-        $ref: '#/definitions/types.CommodityType'
+        allOf:
+        - $ref: '#/definitions/types.CommodityType'
+        enum:
+        - 1
       name:
         maxLength: 255
         minLength: 2
@@ -134,10 +166,43 @@ definitions:
       offset:
         type: integer
     type: object
+  repos.CommodityAttributeFindOpts:
+    properties:
+      commodityTypes:
+        description: For IN query
+        items:
+          $ref: '#/definitions/types.CommodityType'
+        type: array
+      ids:
+        items:
+          format: int64
+          type: integer
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+    type: object
   repos.CompanyFindOpts:
     properties:
       limit:
         type: integer
+      offset:
+        type: integer
+    type: object
+  repos.FindCommoditiesOptions:
+    properties:
+      commodityType:
+        $ref: '#/definitions/types.CommodityType'
+      ids:
+        items:
+          format: int64
+          type: integer
+        type: array
+      limit:
+        type: integer
+      name:
+        type: string
       offset:
         type: integer
     type: object
@@ -211,6 +276,21 @@ definitions:
     - line1
     - postalCode
     - state
+    type: object
+  types.Commodity:
+    properties:
+      commodityType:
+        $ref: '#/definitions/types.CommodityType'
+      createdAt:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updatedAt:
+        type: string
+      visible:
+        type: boolean
     type: object
   types.CommodityAttribute:
     properties:
@@ -525,6 +605,151 @@ paths:
       summary: User Login
       tags:
       - auth
+  /commodities:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new commodity.
+      parameters:
+      - description: Commodity Creation Payload
+        in: body
+        name: commodity
+        required: true
+        schema:
+          $ref: '#/definitions/commodities.CreateCommodityPayload'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created commodity
+          schema:
+            $ref: '#/definitions/types.Commodity'
+        "400":
+          description: Bad Request - Invalid input or validation failed
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - AppTokenAuth: []
+      summary: Create a new commodity
+      tags:
+      - commodities
+  /commodities/{id}:
+    get:
+      description: Retrieves the details of a single commodity.
+      parameters:
+      - description: Commodity ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved commodity
+          schema:
+            $ref: '#/definitions/types.Commodity'
+        "400":
+          description: Bad Request - Invalid ID
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found - Commodity not found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - AppTokenAuth: []
+      summary: Get a commodity by ID
+      tags:
+      - commodities
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing commodity by ID.
+      parameters:
+      - description: Commodity ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commodity Update Payload
+        in: body
+        name: commodity
+        required: true
+        schema:
+          $ref: '#/definitions/commodities.UpdateCommodityPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated commodity
+          schema:
+            $ref: '#/definitions/types.Commodity'
+        "400":
+          description: Bad Request - Invalid input or validation failed
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found - Commodity not found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - AppTokenAuth: []
+      summary: Update a commodity
+      tags:
+      - commodities
+  /commodities/find:
+    post:
+      consumes:
+      - application/json
+      description: Finds commodities with optional filters and pagination by sending
+        a JSON body.
+      parameters:
+      - description: Find options
+        in: body
+        name: opts
+        required: true
+        schema:
+          $ref: '#/definitions/repos.FindCommoditiesOptions'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: A list of commodities
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.FindResult'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.Commodity'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - AppTokenAuth: []
+      summary: Find commodities
+      tags:
+      - commodities
   /commodity-attributes:
     post:
       consumes:
@@ -656,6 +881,46 @@ paths:
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
       summary: Update a commodity attribute
+      tags:
+      - commodity-attributes
+  /commodity-attributes/find:
+    post:
+      consumes:
+      - application/json
+      description: Finds commodity attributes with optional filters and pagination
+        by sending a JSON body.
+      parameters:
+      - description: Find options
+        in: body
+        name: opts
+        required: true
+        schema:
+          $ref: '#/definitions/repos.CommodityAttributeFindOpts'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: A list of commodity attributes
+          schema:
+            allOf:
+            - $ref: '#/definitions/types.FindResult'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/types.CommodityAttribute'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - AppTokenAuth: []
+      summary: Find commodity attributes
       tags:
       - commodity-attributes
   /commodity-types:

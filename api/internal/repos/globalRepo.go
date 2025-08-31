@@ -13,6 +13,7 @@ type GlobalRepo interface {
 	Companies() CompaniesRepo
 	Locations() LocationsRepo
 	CommodityAttributes() CommodityAttributesRepo
+	Commodities() CommoditiesRepo
 }
 
 func NewGlobalRepo(db *xorm.Engine, gclient GoogleAPIClient) GlobalRepo {
@@ -77,5 +78,9 @@ func (gr *globalRepo) Locations() LocationsRepo {
 }
 
 func (gr *globalRepo) CommodityAttributes() CommodityAttributesRepo {
-	return gr.factory("CommodityAttributes", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCommodityAttributesRepo(db) }).(CommodityAttributesRepo)
+	return gr.factory("CommodiatyAttributes", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCommodityAttributesRepo(db) }).(CommodityAttributesRepo)
+}
+
+func (gr *globalRepo) Commodities() CommoditiesRepo {
+	return gr.factory("Commodities", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCommoditiesRepo(db) }).(CommoditiesRepo)
 }

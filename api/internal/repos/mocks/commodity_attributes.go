@@ -71,34 +71,6 @@ func (mr *MockCommodityAttributesRepoMockRecorder) CreateTx(ctx, tx, ca any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTx", reflect.TypeOf((*MockCommodityAttributesRepo)(nil).CreateTx), ctx, tx, ca)
 }
 
-// Delete mocks base method.
-func (m *MockCommodityAttributesRepo) Delete(ctx context.Context, id int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Delete indicates an expected call of Delete.
-func (mr *MockCommodityAttributesRepoMockRecorder) Delete(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockCommodityAttributesRepo)(nil).Delete), ctx, id)
-}
-
-// DeleteTx mocks base method.
-func (m *MockCommodityAttributesRepo) DeleteTx(ctx context.Context, tx *xorm.Session, id int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTx", ctx, tx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteTx indicates an expected call of DeleteTx.
-func (mr *MockCommodityAttributesRepoMockRecorder) DeleteTx(ctx, tx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTx", reflect.TypeOf((*MockCommodityAttributesRepo)(nil).DeleteTx), ctx, tx, id)
-}
-
 // Find mocks base method.
 func (m *MockCommodityAttributesRepo) Find(ctx context.Context, opts *repos.CommodityAttributeFindOpts) ([]*types.CommodityAttribute, int64, error) {
 	m.ctrl.T.Helper()

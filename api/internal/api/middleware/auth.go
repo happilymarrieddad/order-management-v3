@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	jwtpkg "github.com/happilymarrieddad/order-management-v3/api/internal/jwt"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
@@ -93,4 +94,12 @@ func AuthUserAdminRequired(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// AuthUserAdminRequiredMuxMiddleware returns a mux.MiddlewareFunc that checks if the authenticated user has the admin role.
+// If the user is not an admin, it writes a 403 Forbidden error.
+func AuthUserAdminRequiredMuxMiddleware() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return AuthUserAdminRequired(next.ServeHTTP)
+	}
 }
