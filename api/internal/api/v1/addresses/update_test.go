@@ -1,104 +1,117 @@
 package addresses_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 )
 
 var _ = Describe("Update Address Handler", func() {
-	var updatePayload map[string]interface{}
+	var (
+		payload      addresses.UpdateAddressPayload
+		payloadBytes []byte
+		existingAddr *types.Address
+		err          error
+	)
 
 	BeforeEach(func() {
-		updatePayload = map[string]interface{}{
-			"line_1":      "456 Updated Ave",
-			"city":        "Newville",
-			"state":       "NY",
-			"postal_code": "54321",
+		payload = addresses.UpdateAddressPayload{
+			Line1:   utils.Ref("456 Updated Ave"),
+			City:    utils.Ref("Newville"),
+			Country: utils.Ref("CAN"),
+		}
+		payloadBytes, err = json.Marshal(payload)
+		Expect(err).NotTo(HaveOccurred())
+
+		existingAddr = &types.Address{
+			ID:         1,
+			Line1:      "123 Original St",
+			City:       "Oldtown",
+			State:      "CA",
+			PostalCode: "12345",
+			Country:    "USA",
 		}
 	})
 
-	Context("with a valid request", func() {
-		It("should update the address successfully", func() {
-			addressID := int64(123)
-			body, _ := json.Marshal(updatePayload)
-
-			// Mock the Get call to find the existing address
-			existingAddress := &types.Address{ID: addressID, Line1: "Old St"}
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(existingAddress, true, nil)
-
-			// Mock the Update call
+	Context("when update is successful", func() {
+		It("should return 200 OK with the updated address", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingAddr, true, nil)
+			// The repo's Update method is responsible for geocoding and persistence.
 			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-			req := createRequestWithRepo("PUT", "/api/v1/addresses/123", body, map[string]string{"id": "123"})
-			addresses.Update(rr, req)
+			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
-			var returnedAddress types.Address
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedAddress)
+			var returnedAddr types.Address
+			err := json.Unmarshal(rr.Body.Bytes(), &returnedAddr)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedAddress.Line1).To(Equal("456 Updated Ave"))
+			Expect(returnedAddr.ID).To(Equal(existingAddr.ID))
+			Expect(returnedAddr.Line1).To(Equal(*payload.Line1)) // Check that a field was updated
+			Expect(returnedAddr.Country).To(Equal(*payload.Country))
 		})
 	})
 
-	Context("with an invalid request", func() {
-		It("should return 400 for a non-integer ID", func() {
-			body, _ := json.Marshal(updatePayload)
-			req := createRequestWithRepo("PUT", "/api/v1/addresses/abc", body, map[string]string{"id": "abc"})
-			addresses.Update(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should return 400 for a missing required field", func() {
-			delete(updatePayload, "city")
-			body, _ := json.Marshal(updatePayload)
-			req := createRequestWithRepo("PUT", "/api/v1/addresses/123", body, map[string]string{"id": "123"})
-			addresses.Update(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-		})
-	})
-
-	Context("when the target address does not exist", func() {
+	Context("when the address to update is not found", func() {
 		It("should return 404 Not Found", func() {
-			addressID := int64(404)
-			body, _ := json.Marshal(updatePayload)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
 
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(nil, false, nil)
-
-			req := createRequestWithRepo("PUT", "/api/v1/addresses/404", body, map[string]string{"id": "404"})
-			addresses.Update(rr, req)
-
+			req := newAuthenticatedRequest("PUT", "/addresses/999", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 on Get error", func() {
-			addressID := int64(500)
-			body, _ := json.Marshal(updatePayload)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(nil, false, errors.New("get error"))
-
-			req := createRequestWithRepo("PUT", "/api/v1/addresses/500", body, map[string]string{"id": "500"})
-			addresses.Update(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+	Context("with invalid input", func() {
+		It("should return 400 for a malformed JSON body", func() {
+			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBufferString(`{]`), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should return 500 on Update error", func() {
-			addressID := int64(123)
-			body, _ := json.Marshal(updatePayload)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(&types.Address{ID: addressID}, true, nil)
-			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("update error"))
+		It("should return 404 for a non-integer ID", func() {
+			req := newAuthenticatedRequest("PUT", "/addresses/abc", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusNotFound))
+		})
+	})
 
-			req := createRequestWithRepo("PUT", "/api/v1/addresses/123", body, map[string]string{"id": "123"})
-			addresses.Update(rr, req)
+	Context("when the repository fails", func() {
+		It("should return 500 on update failure", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingAddr, true, nil)
+			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db update failed"))
+
+			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to update address"))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), basicUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
+		})
+
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), nil)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

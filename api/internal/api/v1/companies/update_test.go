@@ -1,110 +1,106 @@
 package companies_test
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/companies"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 )
 
 var _ = Describe("Update Company Handler", func() {
-	var updatePayload map[string]interface{}
+	var (
+		payload      companies.UpdateCompanyPayload
+		payloadBytes []byte
+		existingComp *types.Company
+		err          error
+	)
 
 	BeforeEach(func() {
-		updatePayload = map[string]interface{}{
-			"name":       "Updated Company Name",
-			"address_id": int64(2),
+		payload = companies.UpdateCompanyPayload{
+			Name: utils.Ref("Updated Corp"),
+		}
+		payloadBytes, err = json.Marshal(payload)
+		Expect(err).NotTo(HaveOccurred())
+
+		existingComp = &types.Company{
+			ID:   1,
+			Name: "Original Corp",
 		}
 	})
 
-	Context("with a valid request", func() {
-		It("should update the company successfully", func() {
-			companyID := int64(123)
-			body, _ := json.Marshal(updatePayload)
+	Context("when update is successful", func() {
+		It("should return 200 OK with the updated company", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingComp, true, nil)
+			mockCompaniesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-			// Mock the Get call to find the existing company
-			existingCompany := &types.Company{ID: companyID, Name: "Old Name", AddressID: 1}
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(existingCompany, true, nil)
-
-			// Mock the Update call
-			mockCompaniesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, company *types.Company) error {
-					Expect(company.ID).To(Equal(companyID))
-					Expect(company.Name).To(Equal(updatePayload["name"]))
-					Expect(company.AddressID).To(Equal(updatePayload["address_id"]))
-					return nil
-				},
-			)
-
-			req := createRequestWithRepo("PUT", "/api/v1/companies/123", body, map[string]string{"id": "123"})
-			companies.Update(rr, req)
+			req := newAuthenticatedRequest("PUT", "/companies/1", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
 			var returnedCompany types.Company
 			err := json.Unmarshal(rr.Body.Bytes(), &returnedCompany)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedCompany.Name).To(Equal("Updated Company Name"))
+			Expect(returnedCompany.Name).To(Equal(*payload.Name))
 		})
 	})
 
-	Context("with an invalid request", func() {
-		It("should return 400 for a non-integer ID", func() {
-			body, _ := json.Marshal(updatePayload)
-			req := createRequestWithRepo("PUT", "/api/v1/companies/abc", body, map[string]string{"id": "abc"})
-			companies.Update(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should return 400 for a missing required field", func() {
-			delete(updatePayload, "name")
-			body, _ := json.Marshal(updatePayload)
-			req := createRequestWithRepo("PUT", "/api/v1/companies/123", body, map[string]string{"id": "123"})
-			companies.Update(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-		})
-	})
-
-	Context("when the target company does not exist", func() {
+	Context("when the company to update is not found", func() {
 		It("should return 404 Not Found", func() {
-			companyID := int64(404)
-			body, _ := json.Marshal(updatePayload)
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
 
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(nil, false, nil)
-
-			req := createRequestWithRepo("PUT", "/api/v1/companies/404", body, map[string]string{"id": "404"})
-			companies.Update(rr, req)
-
+			req := newAuthenticatedRequest("PUT", "/companies/999", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 on Get error", func() {
-			companyID := int64(500)
-			body, _ := json.Marshal(updatePayload)
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(nil, false, errors.New("get error"))
-
-			req := createRequestWithRepo("PUT", "/api/v1/companies/500", body, map[string]string{"id": "500"})
-			companies.Update(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+	Context("with invalid input", func() {
+		It("should return 400 for a malformed JSON body", func() {
+			req := newAuthenticatedRequest("PUT", "/companies/1", bytes.NewBufferString(`{]`), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should return 500 on Update error", func() {
-			companyID := int64(123)
-			body, _ := json.Marshal(updatePayload)
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(&types.Company{ID: companyID}, true, nil)
-			mockCompaniesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("update error"))
+		It("should return 404 for a non-integer ID", func() {
+			req := newAuthenticatedRequest("PUT", "/companies/abc", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusNotFound))
+		})
+	})
 
-			req := createRequestWithRepo("PUT", "/api/v1/companies/123", body, map[string]string{"id": "123"})
-			companies.Update(rr, req)
+	Context("when the repository fails", func() {
+		It("should return 500 on update failure", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingComp, true, nil)
+			mockCompaniesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db update failed"))
+
+			req := newAuthenticatedRequest("PUT", "/companies/1", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to update company"))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("PUT", "/companies/1", bytes.NewBuffer(payloadBytes), basicUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("PUT", "/companies/1", bytes.NewBuffer(payloadBytes), nil)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

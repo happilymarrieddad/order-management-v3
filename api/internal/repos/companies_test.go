@@ -70,6 +70,7 @@ var _ = Describe("CompanyRepo Integration", func() {
 			invalidCompany := &types.Company{Name: "", AddressID: createdAddr.ID}
 			err = companyRepo.Create(ctx, invalidCompany)
 			Expect(err).To(HaveOccurred())
+			// This checks for the validation error from the repository
 			Expect(err.Error()).To(ContainSubstring("Field validation for 'Name' failed on the 'required' tag"))
 		})
 	})
@@ -98,7 +99,7 @@ var _ = Describe("CompanyRepo Integration", func() {
 		})
 	})
 
-		Context("Delete", func() {
+	Context("Delete", func() {
 		It("should soft delete an existing company", func() {
 			// Create a company to delete
 			addr := &types.Address{Line1: "3 Deletion Dr", City: "Goneville", State: "GV", Country: "USA", PostalCode: "98765"}

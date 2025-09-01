@@ -95,14 +95,14 @@ var _ = Describe("CommodityRepo Integration", func() {
 		})
 
 		It("should find all commodities when no options are provided", func() {
-			commodities, count, err := commodityRepo.Find(ctx, &repos.FindCommoditiesOptions{})
+			commodities, count, err := commodityRepo.Find(ctx, &repos.FindCommoditiesOpts{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(BeNumerically(">=", 3))
 			Expect(len(commodities)).To(BeNumerically(">=", 3))
 		})
 
 		It("should find commodities by name", func() {
-			opts := &repos.FindCommoditiesOptions{Name: "Apple"}
+			opts := &repos.FindCommoditiesOpts{Name: "Apple"}
 			commodities, count, err := commodityRepo.Find(ctx, opts)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(int64(1)))
@@ -111,7 +111,7 @@ var _ = Describe("CommodityRepo Integration", func() {
 		})
 
 		It("should find commodities by commodity type", func() {
-			opts := &repos.FindCommoditiesOptions{CommodityType: types.CommodityTypeProduce}
+			opts := &repos.FindCommoditiesOpts{CommodityType: types.CommodityTypeProduce}
 			commodities, count, err := commodityRepo.Find(ctx, opts)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(int64(2)))
@@ -119,7 +119,7 @@ var _ = Describe("CommodityRepo Integration", func() {
 		})
 
 		It("should respect limit and offset for visible items", func() {
-			opts := &repos.FindCommoditiesOptions{Limit: 1, Offset: 1}
+			opts := &repos.FindCommoditiesOpts{Limit: 1, Offset: 1}
 			commodities, count, err := commodityRepo.Find(ctx, opts)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(int64(3))) // Total visible count

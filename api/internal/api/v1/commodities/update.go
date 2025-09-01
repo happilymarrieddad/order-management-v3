@@ -18,7 +18,7 @@ import (
 // @Param        id        path      int                      true  "Commodity ID"
 // @Param        commodity body      UpdateCommodityPayload   true  "Commodity Update Payload"
 // @Success      200       {object}  types.Commodity          "Successfully updated commodity"
-// @Failure      400       {object}  middleware.ErrorResponse "Bad Request - Invalid input or validation failed" 
+// @Failure      400       {object}  middleware.ErrorResponse "Bad Request - Invalid input or validation failed"
 // @Failure      404       {object}  middleware.ErrorResponse "Not Found - Commodity not found"
 // @Failure      500       {object}  middleware.ErrorResponse "Internal Server Error"
 // @Security     AppTokenAuth
@@ -39,13 +39,13 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "validation failed: "+err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 
 	commodity, found, err := repo.Commodities().Get(r.Context(), id)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get commodity")
 		return
 	}
 	if !found {
@@ -53,11 +53,15 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	commodity.Name = payload.Name
-	commodity.CommodityType = payload.CommodityType
+	if payload.Name != nil {
+		commodity.Name = *payload.Name
+	}
+	if payload.CommodityType != nil {
+		commodity.CommodityType = *payload.CommodityType
+	}
 
 	if err := repo.Commodities().Update(r.Context(), commodity); err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to update commodity")
 		return
 	}
 

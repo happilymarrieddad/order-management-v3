@@ -7,8 +7,8 @@ import (
 	"xorm.io/xorm"
 )
 
-// FindCommoditiesOptions defines the options for finding commodities.
-type FindCommoditiesOptions struct {
+// FindCommoditiesOpts defines the options for finding commodities.
+type FindCommoditiesOpts struct {
 	IDs           []int64
 	Name          string
 	CommodityType types.CommodityType
@@ -23,7 +23,7 @@ type CommoditiesRepo interface {
 	Get(ctx context.Context, id int64) (*types.Commodity, bool, error)
 	Update(ctx context.Context, commodity *types.Commodity) error
 	UpdateTx(ctx context.Context, tx *xorm.Session, commodity *types.Commodity) error
-	Find(ctx context.Context, opts *FindCommoditiesOptions) ([]*types.Commodity, int64, error)
+	Find(ctx context.Context, opts *FindCommoditiesOpts) ([]*types.Commodity, int64, error)
 }
 
 type commoditiesRepo struct {
@@ -70,20 +70,20 @@ func (r *commoditiesRepo) UpdateTx(ctx context.Context, tx *xorm.Session, commod
 	return err
 }
 
-func (r *commoditiesRepo) Find(ctx context.Context, opts *FindCommoditiesOptions) ([]*types.Commodity, int64, error) {
+func (r *commoditiesRepo) Find(ctx context.Context, opts *FindCommoditiesOpts) ([]*types.Commodity, int64, error) {
 	s := r.db.NewSession().Context(ctx)
 	defer s.Close()
 
 	s.Where("visible = ?", true)
 
-	applyFindCommoditiesOptions(s, opts)
+	applyFindCommoditiesOpts(s, opts)
 
 	var commodities []*types.Commodity
 	count, err := s.FindAndCount(&commodities)
 	return commodities, count, err
 }
 
-func applyFindCommoditiesOptions(s *xorm.Session, opts *FindCommoditiesOptions) {
+func applyFindCommoditiesOpts(s *xorm.Session, opts *FindCommoditiesOpts) {
 	if opts == nil {
 		return
 	}

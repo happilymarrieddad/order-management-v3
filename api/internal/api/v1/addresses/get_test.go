@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,8 +19,8 @@ var _ = Describe("Get Address Handler", func() {
 
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(expectedAddress, true, nil)
 
-			req := createRequestWithRepo("GET", "/api/v1/addresses/123", nil, map[string]string{"id": "123"})
-			addresses.Get(rr, req)
+			req := newAuthenticatedRequest("GET", "/addresses/123", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -38,8 +37,8 @@ var _ = Describe("Get Address Handler", func() {
 			addressID := int64(404)
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(nil, false, nil)
 
-			req := createRequestWithRepo("GET", "/api/v1/addresses/404", nil, map[string]string{"id": "404"})
-			addresses.Get(rr, req)
+			req := newAuthenticatedRequest("GET", "/addresses/404", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusNotFound))
 			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
@@ -47,12 +46,12 @@ var _ = Describe("Get Address Handler", func() {
 	})
 
 	Context("with an invalid request", func() {
-		It("should return 400 for a non-integer ID", func() {
-			req := createRequestWithRepo("GET", "/api/v1/addresses/abc", nil, map[string]string{"id": "abc"})
-			addresses.Get(rr, req)
+		It("should return 404 for a non-integer ID", func() {
+			req := newAuthenticatedRequest("GET", "/addresses/abc", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("invalid address ID"))
+			// This is a router-level 404 because the route `/{id:[0-9]+}` does not match
+			Expect(rr.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
@@ -63,11 +62,11 @@ var _ = Describe("Get Address Handler", func() {
 
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(nil, false, dbErr)
 
-			req := createRequestWithRepo("GET", "/api/v1/addresses/500", nil, map[string]string{"id": "500"})
-			addresses.Get(rr, req)
+			req := newAuthenticatedRequest("GET", "/addresses/500", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to get address"))
 		})
 	})
 })

@@ -190,7 +190,7 @@ definitions:
       offset:
         type: integer
     type: object
-  repos.FindCommoditiesOptions:
+  repos.FindCommoditiesOpts:
     properties:
       commodityType:
         $ref: '#/definitions/types.CommodityType'
@@ -722,7 +722,7 @@ paths:
         name: opts
         required: true
         schema:
-          $ref: '#/definitions/repos.FindCommoditiesOptions'
+          $ref: '#/definitions/repos.FindCommoditiesOpts'
       produces:
       - application/json
       responses:

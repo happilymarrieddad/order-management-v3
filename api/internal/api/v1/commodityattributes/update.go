@@ -43,14 +43,14 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 
 	// Get existing attribute to ensure it exists and to preserve original fields
 	ca, found, err := repo.CommodityAttributes().Get(r.Context(), id)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get commodity attribute")
 		return
 	}
 	if !found {
@@ -58,15 +58,19 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ca.Name = payload.Name
-	ca.CommodityType = payload.CommodityType
+	if payload.Name != nil {
+		ca.Name = *payload.Name
+	}
+	if payload.CommodityType != nil {
+		ca.CommodityType = *payload.CommodityType
+	}
 
 	if err := repo.CommodityAttributes().Update(r.Context(), ca); err != nil {
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 			middleware.WriteError(w, http.StatusConflict, "Commodity attribute with this name already exists")
 			return
 		}
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to update commodity attribute")
 		return
 	}
 

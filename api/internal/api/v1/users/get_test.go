@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,8 +20,8 @@ var _ = Describe("Get User Handler", func() {
 
 			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(expectedUser, true, nil)
 
-			req := createRequestWithRepo("GET", "/api/v1/users/123", nil, map[string]string{"id": "123"})
-			users.Get(rr, req)
+			req := newAuthenticatedRequest("GET", "/users/123", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -40,8 +39,8 @@ var _ = Describe("Get User Handler", func() {
 			userID := int64(404)
 			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(nil, false, nil)
 
-			req := createRequestWithRepo("GET", "/api/v1/users/404", nil, map[string]string{"id": "404"})
-			users.Get(rr, req)
+			req := newAuthenticatedRequest("GET", "/users/404", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusNotFound))
 			Expect(rr.Body.String()).To(ContainSubstring("user not found"))
@@ -49,12 +48,12 @@ var _ = Describe("Get User Handler", func() {
 	})
 
 	Context("with an invalid request", func() {
-		It("should return 400 for a non-integer ID", func() {
-			req := createRequestWithRepo("GET", "/api/v1/users/abc", nil, map[string]string{"id": "abc"})
-			users.Get(rr, req)
+		It("should return 404 for a non-integer ID", func() {
+			req := newAuthenticatedRequest("GET", "/users/abc", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("invalid user ID"))
+			// This is a router-level 404 because the route `/{id:[0-9]+}` does not match
+			Expect(rr.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
@@ -65,11 +64,12 @@ var _ = Describe("Get User Handler", func() {
 
 			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(nil, false, dbErr)
 
-			req := createRequestWithRepo("GET", "/api/v1/users/500", nil, map[string]string{"id": "500"})
-			users.Get(rr, req)
+			req := newAuthenticatedRequest("GET", "/users/500", nil, basicUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to get user"))
 		})
 	})
+
 })

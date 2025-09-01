@@ -1,14 +1,15 @@
 package commodityattributes_test
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
+	. "github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodityattributes"
 	mock_repos "github.com/happilymarrieddad/order-management-v3/api/internal/repos/mocks"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -22,12 +23,15 @@ func TestCommodityAttributes(t *testing.T) {
 }
 
 var (
-	mockCtrl                  *gomock.Controller
-	mockGlobalRepo            *mock_repos.MockGlobalRepo
+	mockCtrl                    *gomock.Controller
+	mockGlobalRepo              *mock_repos.MockGlobalRepo
 	mockCommodityAttributesRepo *mock_repos.MockCommodityAttributesRepo
-	mockUsersRepo             *mock_repos.MockUsersRepo
-	rr                        *httptest.ResponseRecorder
-	ctx                       context.Context
+	mockUsersRepo               *mock_repos.MockUsersRepo
+	rr                          *httptest.ResponseRecorder
+	router                      *mux.Router
+	ctx                         context.Context
+	adminUser                   *types.User
+	basicUser                   *types.User
 )
 
 var _ = BeforeEach(func() {
@@ -41,36 +45,32 @@ var _ = BeforeEach(func() {
 	mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo).AnyTimes()
 
 	rr = httptest.NewRecorder()
+	router = mux.NewRouter()
+	AddRoutes(router)
 	ctx = context.Background()
+
+	adminUser = &types.User{ID: 1, Roles: types.Roles{types.RoleAdmin}}
+	basicUser = &types.User{ID: 2, Roles: types.Roles{types.RoleUser}}
 })
 
 var _ = AfterEach(func() {
 	mockCtrl.Finish()
 })
 
-// createRequestWithRepo creates a new HTTP request with the mocked repository
-// injected into the context, and optionally a user ID.
-func createRequestWithRepo(method, url string, body []byte, vars map[string]string, userID ...int64) *http.Request {
-	req, err := http.NewRequest(method, url, bytes.NewBuffer(body))
+// newAuthenticatedRequest creates a new HTTP request with the mocked repository
+// and a user injected into the context. If user is nil, the request is unauthenticated.
+func newAuthenticatedRequest(method, url string, body io.Reader, user *types.User) *http.Request {
+	req, err := http.NewRequest(method, url, body)
 	Expect(err).NotTo(HaveOccurred())
 
-	// Inject the mocked GlobalRepo into the request\'s context
+	// Inject the mocked GlobalRepo into the request's context
 	ctxWithRepo := context.WithValue(req.Context(), middleware.RepoKey, mockGlobalRepo)
-	req = req.WithContext(ctxWithRepo)
 
-	// Optionally add UserID to context and mock UsersRepo for admin check
-	if len(userID) > 0 {
-		req = req.WithContext(middleware.AddUserIDToContext(req.Context(), userID[0]))
-		// Mock the UsersRepo to return an admin user for the given userID
-		mockUsersRepo.EXPECT().Get(gomock.Any(), userID[0]).Return(&types.User{
-			ID:    userID[0],
-			Roles: types.Roles{types.RoleAdmin}, // Ensure the user has the admin role
-		}, true, nil).AnyTimes()
+	// If a user is provided, add UserID to context and mock UsersRepo for role checks
+	if user != nil {
+		ctxWithRepo = middleware.AddUserIDToContext(ctxWithRepo, user.ID)
+		mockUsersRepo.EXPECT().Get(gomock.Any(), user.ID).Return(user, true, nil).AnyTimes()
 	}
 
-	if vars != nil {
-		req = mux.SetURLVars(req, vars)
-	}
-
-	return req
+	return req.WithContext(ctxWithRepo)
 }

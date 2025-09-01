@@ -6,12 +6,19 @@ import (
 )
 
 // AddRoutes configures the commodity attribute-related routes on the given subrouter.
+// All routes require authentication. POST, PUT, and /find require admin privileges.
 func AddRoutes(r *mux.Router) {
 	// Create a subrouter for the /commodity-attributes resource.
-	commodityAttributesRouter := r.PathPrefix("/commodity-attributes").Subrouter()
-	commodityAttributesRouter.Use(middleware.AuthUserAdminRequiredMuxMiddleware())
-	commodityAttributesRouter.HandleFunc("", Create).Methods("POST")
-	commodityAttributesRouter.HandleFunc("/find", Find).Methods("POST")
-	commodityAttributesRouter.HandleFunc("/{id:[0-9]+}", Get).Methods("GET")
-	commodityAttributesRouter.HandleFunc("/{id:[0-9]+}", Update).Methods("PUT")
+	s := r.PathPrefix("/commodity-attributes").Subrouter()
+
+	// Routes that require authentication but not admin role.
+	// The parent router already applies the AuthMiddleware.
+	s.HandleFunc("/{id:[0-9]+}", Get).Methods("GET")
+
+	// Create a subrouter for routes that require admin privileges.
+	adminRouter := s.NewRoute().Subrouter()
+	adminRouter.Use(middleware.AuthUserAdminRequiredMuxMiddleware())
+	adminRouter.HandleFunc("", Create).Methods("POST")
+	adminRouter.HandleFunc("/find", Find).Methods("POST")
+	adminRouter.HandleFunc("/{id:[0-9]+}", Update).Methods("PUT")
 }

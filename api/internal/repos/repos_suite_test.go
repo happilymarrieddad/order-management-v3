@@ -84,7 +84,7 @@ var _ = BeforeEach(func() {
 	// For Postgres, truncating tables is a fast and effective way to ensure test isolation.
 	// 'RESTART IDENTITY' resets auto-incrementing primary keys.
 	// 'CASCADE' truncates dependent tables via foreign keys.
-	_, err := db.Exec("TRUNCATE TABLE users, companies, addresses, commodity_attributes, commodities RESTART IDENTITY CASCADE")
+	_, err := db.Exec("TRUNCATE TABLE users, companies, addresses, locations, commodity_attributes, commodities RESTART IDENTITY CASCADE")
 	Expect(err).NotTo(HaveOccurred())
 })
 

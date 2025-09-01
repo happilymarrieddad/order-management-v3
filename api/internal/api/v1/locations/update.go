@@ -2,33 +2,18 @@ package locations
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
-	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-// @Summary      Update a location
-// @Description  Updates an existing location's name and/or address.
-// @Tags         locations
-// @Accept       json
-// @Produce      json
-// @Param        id       path      int                      true  "Location ID"
-// @Param        location body      UpdateLocationPayload    true  "Location Update Payload"
-// @Success      200      {object}  types.Location           "Successfully updated location"
-// @Failure      400      {object}  middleware.ErrorResponse "Bad Request - Invalid input or ID"
-// @Failure      404      {object}  middleware.ErrorResponse "Not Found - Location or new address not found"
-// @Failure      500      {object}  middleware.ErrorResponse "Internal Server Error"
-// @Security     AppTokenAuth
-// @Router       /locations/{id} [put]
 func Update(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
-	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
+
+	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid location ID")
 		return
@@ -41,13 +26,13 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "validation failed: "+err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 
-	location, found, err := repo.Locations().Get(r.Context(), id)
+	loc, found, err := repo.Locations().Get(r.Context(), id)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get location")
 		return
 	}
 	if !found {
@@ -55,29 +40,30 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, found, err = repo.Addresses().Get(r.Context(), payload.AddressID)
-	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if !found {
-		middleware.WriteError(w, http.StatusBadRequest, "new address not found")
-		return
-	}
-
-	location.Name = payload.Name
-	location.AddressID = payload.AddressID
-
-	if err := repo.Locations().Update(r.Context(), location); err != nil {
-		if errors.Is(err, repos.ErrLocationNameExists) {
-			middleware.WriteError(w, http.StatusBadRequest, err.Error())
-		} else {
-			middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+	// Validate new address if provided
+	if payload.AddressID != nil {
+		_, found, err := repo.Addresses().Get(r.Context(), *payload.AddressID)
+		if err != nil {
+			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
+			return
 		}
+		if !found {
+			middleware.WriteError(w, http.StatusBadRequest, "new address not found")
+			return
+		}
+		loc.AddressID = *payload.AddressID
+	}
+
+	if payload.Name != nil {
+		loc.Name = *payload.Name
+	}
+
+	if err := repo.Locations().Update(r.Context(), loc); err != nil {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to update location")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(location)
+	json.NewEncoder(w).Encode(loc)
 }

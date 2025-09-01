@@ -1,19 +1,22 @@
 package addresses
 
-// CreateAddressPayload defines the structure for creating a new address.
+// CreateAddressPayload defines the expected JSON structure for creating a new address.
 type CreateAddressPayload struct {
-	Line1      string  `json:"line_1" validate:"required" example:"123 Main St"`
-	Line2      *string `json:"line_2" example:"Apt 4B"`
-	City       string  `json:"city" validate:"required" example:"Anytown"`
-	State      string  `json:"state" validate:"required" example:"CA"`
-	PostalCode string  `json:"postal_code" validate:"required" example:"12345"`
+	Line1      string `json:"line_1" validate:"required"`
+	Line2      string `json:"line_2"`
+	City       string `json:"city" validate:"required"`
+	State      string `json:"state" validate:"required"`
+	PostalCode string `json:"postal_code" validate:"required"`
+	Country    string `json:"country" validate:"required"`
 }
 
-// UpdateAddressPayload defines the structure for updating an address.
+// UpdateAddressPayload defines the expected JSON structure for updating an address.
+// Pointers are used to distinguish between a field not being provided and a field being set to its zero value.
 type UpdateAddressPayload struct {
-	Line1      string  `json:"line_1" validate:"required" example:"456 Market St"`
-	Line2      *string `json:"line_2" example:"Suite 200"`
-	City       string  `json:"city" validate:"required" example:"Newville"`
-	State      string  `json:"state" validate:"required" example:"NY"`
-	PostalCode string  `json:"postal_code" validate:"required" example:"54321"`
+	Line1      *string `json:"line_1"`
+	Line2      *string `json:"line_2"`
+	City       *string `json:"city"`
+	State      *string `json:"state"`
+	PostalCode *string `json:"postal_code"`
+	Country    *string `json:"country"`
 }

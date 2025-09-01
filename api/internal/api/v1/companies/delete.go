@@ -8,27 +8,28 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 )
 
-// @Summary      Delete a company
-// @Description  Deletes a company by its ID.
-// @Tags         companies
-// @Param        id  path      int  true  "Company ID"
-// @Success      204 "No Content"
-// @Failure      400 {object} middleware.ErrorResponse "Bad Request - Invalid ID"
-// @Failure      500 {object} middleware.ErrorResponse "Internal Server Error"
-// @Security     BearerAuth
-// @Router       /companies/{id} [delete]
-// Delete handles the deletion of a company.
 func Delete(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
-	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
+
+	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid company ID")
 		return
 	}
 
+	// Ensure the company exists before attempting to delete
+	_, found, err := repo.Companies().Get(r.Context(), id)
+	if err != nil {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get company")
+		return
+	}
+	if !found {
+		middleware.WriteError(w, http.StatusNotFound, "company not found")
+		return
+	}
+
 	if err := repo.Companies().Delete(r.Context(), id); err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to delete company")
 		return
 	}
 

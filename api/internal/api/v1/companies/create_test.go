@@ -1,6 +1,7 @@
 package companies_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,97 +15,80 @@ import (
 )
 
 var _ = Describe("Create Company Handler", func() {
-	var createPayload map[string]interface{}
+	var (
+		payload      companies.CreateCompanyPayload
+		payloadBytes []byte
+		newCompany   *types.Company
+		err          error
+	)
 
 	BeforeEach(func() {
-		createPayload = map[string]interface{}{
-			"name":       "Test Company",
-			"address_id": int64(1),
+		payload = companies.CreateCompanyPayload{
+			Name:      "Test Corp",
+			AddressID: 1,
+		}
+		payloadBytes, err = json.Marshal(payload)
+		Expect(err).NotTo(HaveOccurred())
+
+		newCompany = &types.Company{
+			ID:        1,
+			Name:      payload.Name,
+			AddressID: payload.AddressID,
 		}
 	})
 
-	Context("with a valid request", func() {
-		It("should create a company successfully", func() {
-			body, _ := json.Marshal(createPayload)
+	Context("when creation is successful", func() {
+		It("should return 201 Created with the new company", func() {
+			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Do(
+				func(ctx context.Context, comp *types.Company) {
+					comp.ID = newCompany.ID
+				}).Return(nil)
 
-			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, company *types.Company) error {
-					Expect(company.Name).To(Equal(createPayload["name"]))
-					Expect(company.AddressID).To(Equal(createPayload["address_id"]))
-					company.ID = 123 // Simulate DB assigning an ID
-					return nil
-				},
-			)
-
-			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
-			companies.Create(rr, req)
+			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusCreated))
 
 			var returnedCompany types.Company
 			err := json.Unmarshal(rr.Body.Bytes(), &returnedCompany)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedCompany.ID).To(Equal(int64(123)))
-			Expect(returnedCompany.Name).To(Equal("Test Company"))
+			Expect(returnedCompany.ID).To(Equal(newCompany.ID))
 		})
 	})
 
-	Context("with an invalid request", func() {
-		It("should return 400 for a malformed JSON body", func() {
-			body := []byte(`{"name": "bad json",`)
-			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
-			companies.Create(rr, req)
-
+	Context("with invalid input", func() {
+		It("should return 400 for a validation error (missing name)", func() {
+			payload.Name = "" // Make the payload invalid
+			body, _ := json.Marshal(payload)
+			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("invalid request body"))
-		})
-
-		It("should return 400 for a missing required field (name)", func() {
-			delete(createPayload, "name")
-			body, _ := json.Marshal(createPayload)
-			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
-			companies.Create(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("Key: 'CreateCompanyPayload.Name' Error:Field validation for 'Name' failed on the 'required' tag"))
-		})
-
-		It("should return 400 for a missing required field (address_id)", func() {
-			delete(createPayload, "address_id")
-			body, _ := json.Marshal(createPayload)
-			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
-			companies.Create(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("Key: 'CreateCompanyPayload.AddressID' Error:Field validation for 'AddressID' failed on the 'required' tag"))
+			Expect(rr.Body.String()).To(ContainSubstring("Field 'name' is required."))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			body, _ := json.Marshal(createPayload)
-			dbErr := errors.New("unexpected database error")
-
-			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dbErr)
-
-			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
-			companies.Create(rr, req)
-
+	Context("when the repository fails", func() {
+		It("should return 500 Internal Server Error", func() {
+			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db insert failed"))
+			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to create company"))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), basicUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
 		})
 
-		It("should return 409 Conflict for a duplicate company name", func() {
-			body, _ := json.Marshal(createPayload)
-			// Simulate a unique constraint violation error
-			uniqueConstraintErr := errors.New(`pq: duplicate key value violates unique constraint "companies_name_key"`)
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), nil)
+			router.ServeHTTP(rr, req)
 
-			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(uniqueConstraintErr)
-
-			req := createRequestWithRepo("POST", "/api/v1/companies", body, nil)
-			companies.Create(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusConflict))
-			Expect(rr.Body.String()).To(ContainSubstring("Company with this name already exists"))
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

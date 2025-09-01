@@ -1,11 +1,11 @@
 package addresses_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -15,17 +15,15 @@ import (
 
 var _ = Describe("Find Addresses Handler", func() {
 	Context("when addresses exist", func() {
-		It("should return a list of addresses with default pagination", func() {
+		It("should return a list of addresses for an admin user", func() {
 			foundAddresses := []*types.Address{
 				{ID: 1, Line1: "123 A St"},
 				{ID: 2, Line1: "456 B St"},
 			}
-			// The handler should apply default limit/offset when none are provided.
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.AddressFindOpts{Limit: 10, Offset: 0})).Return(foundAddresses, int64(2), nil)
 
-			// The endpoint is a POST to /find with an empty body for defaults.
-			req := createRequestWithRepo("POST", "/api/v1/addresses/find", []byte(`{}`), nil)
-			addresses.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -46,10 +44,9 @@ var _ = Describe("Find Addresses Handler", func() {
 			opts := &repos.AddressFindOpts{Limit: 5, Offset: 5}
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(opts)).Return(foundAddresses, int64(1), nil)
 
-			// Send the pagination options in the request body.
 			body, _ := json.Marshal(opts)
-			req := createRequestWithRepo("POST", "/api/v1/addresses/find", body, nil)
-			addresses.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -62,11 +59,10 @@ var _ = Describe("Find Addresses Handler", func() {
 
 	Context("when no addresses exist", func() {
 		It("should return an empty list", func() {
-			// The handler should still apply default limits even for an empty result.
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.AddressFindOpts{Limit: 10, Offset: 0})).Return([]*types.Address{}, int64(0), nil)
 
-			req := createRequestWithRepo("POST", "/api/v1/addresses/find", []byte(`{}`), nil)
-			addresses.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -83,11 +79,27 @@ var _ = Describe("Find Addresses Handler", func() {
 			dbErr := errors.New("find query failed")
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
 
-			req := createRequestWithRepo("POST", "/api/v1/addresses/find", []byte(`{}`), nil)
-			addresses.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to find addresses"))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), basicUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
+		})
+
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), nil)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

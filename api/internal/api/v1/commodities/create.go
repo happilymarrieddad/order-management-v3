@@ -27,7 +27,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "validation failed: "+err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 
@@ -39,7 +39,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := repo.Commodities().Create(r.Context(), commodity); err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to create commodity")
 		return
 	}
 

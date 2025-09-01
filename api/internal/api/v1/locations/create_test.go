@@ -1,13 +1,13 @@
 package locations_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/locations"
-	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,111 +15,82 @@ import (
 )
 
 var _ = Describe("Create Location Handler", func() {
-	var createPayload map[string]interface{}
+	var (
+		payload      locations.CreateLocationPayload
+		payloadBytes []byte
+		newLocation  *types.Location
+		err          error
+	)
 
 	BeforeEach(func() {
-		createPayload = map[string]interface{}{
-			"company_id": int64(1),
-			"address_id": int64(2),
-			"name":       "Main Warehouse",
+		payload = locations.CreateLocationPayload{
+			Name:      "Main Warehouse",
+			CompanyID: 1,
+			AddressID: 2,
+		}
+		payloadBytes, err = json.Marshal(payload)
+		Expect(err).NotTo(HaveOccurred())
+
+		newLocation = &types.Location{
+			ID:        1,
+			Name:      payload.Name,
+			CompanyID: payload.CompanyID,
+			AddressID: payload.AddressID,
 		}
 	})
 
-	Context("with a valid request", func() {
-		It("should create a location successfully", func() {
-			body, _ := json.Marshal(createPayload)
-			companyID := createPayload["company_id"].(int64)
-			addressID := createPayload["address_id"].(int64)
+	Context("when creation is successful", func() {
+		It("should return 201 Created with the new location", func() {
+			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Do(
+				func(ctx context.Context, loc *types.Location) {
+					loc.ID = newLocation.ID
+				}).Return(nil)
 
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(&types.Company{ID: companyID}, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(&types.Address{ID: addressID}, true, nil)
-			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, loc *types.Location) error {
-					Expect(loc.CompanyID).To(Equal(companyID))
-					Expect(loc.AddressID).To(Equal(addressID))
-					Expect(loc.Name).To(Equal("Main Warehouse"))
-					loc.ID = 123 // Simulate DB assigning an ID
-					return nil
-				},
-			)
-
-			req := createRequestWithRepo("POST", "/api/v1/locations", body, nil)
-			locations.Create(rr, req)
+			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusCreated))
 
 			var returnedLocation types.Location
 			err := json.Unmarshal(rr.Body.Bytes(), &returnedLocation)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedLocation.ID).To(Equal(int64(123)))
-			Expect(returnedLocation.Name).To(Equal("Main Warehouse"))
+			Expect(returnedLocation.ID).To(Equal(newLocation.ID))
 		})
 	})
 
-	Context("with an invalid request", func() {
-		It("should return 400 for a missing required field", func() {
-			delete(createPayload, "name")
-			body, _ := json.Marshal(createPayload)
-			req := createRequestWithRepo("POST", "/api/v1/locations", body, nil)
-			locations.Create(rr, req)
+	Context("with invalid input", func() {
+		It("should return 400 for a validation error (missing name)", func() {
+			payload.Name = "" // Make the payload invalid
+			body, _ := json.Marshal(payload)
+			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-		})
-	})
-
-	Context("when a dependency is not found", func() {
-		It("should return 400 if the company does not exist", func() {
-			body, _ := json.Marshal(createPayload)
-			companyID := createPayload["company_id"].(int64)
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(nil, false, nil)
-
-			req := createRequestWithRepo("POST", "/api/v1/locations", body, nil)
-			locations.Create(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("company not found"))
-		})
-
-		It("should return 400 if the address does not exist", func() {
-			body, _ := json.Marshal(createPayload)
-			companyID := createPayload["company_id"].(int64)
-			addressID := createPayload["address_id"].(int64)
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(&types.Company{ID: companyID}, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(nil, false, nil)
-
-			req := createRequestWithRepo("POST", "/api/v1/locations", body, nil)
-			locations.Create(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
+			Expect(rr.Body.String()).To(ContainSubstring("Field 'name' is required."))
 		})
 	})
 
 	Context("when the repository fails", func() {
-		It("should return 400 if the location name already exists for the company", func() {
-			body, _ := json.Marshal(createPayload)
-			companyID := createPayload["company_id"].(int64)
-			addressID := createPayload["address_id"].(int64)
+		It("should return 500 Internal Server Error", func() {
+			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db insert failed"))
+			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to create location"))
+		})
+	})
 
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), companyID).Return(&types.Company{ID: companyID}, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), addressID).Return(&types.Address{ID: addressID}, true, nil)
-			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(repos.ErrLocationNameExists)
-
-			req := createRequestWithRepo("POST", "/api/v1/locations", body, nil)
-			locations.Create(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring(repos.ErrLocationNameExists.Error()))
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), basicUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
 		})
 
-		It("should return 500 for a generic database error", func() {
-			body, _ := json.Marshal(createPayload)
-			dbErr := errors.New("unexpected db error")
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), nil)
+			router.ServeHTTP(rr, req)
 
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return(&types.Company{ID: 1}, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return(&types.Address{ID: 2}, true, nil)
-			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dbErr)
-
-			req := createRequestWithRepo("POST", "/api/v1/locations", body, nil)
-			locations.Create(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

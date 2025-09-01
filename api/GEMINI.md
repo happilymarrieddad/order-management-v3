@@ -27,7 +27,7 @@ To ensure our API handler tests are robust and consistent, please follow these c
     *   Setting up the mock chain (e.g., `mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo)`).
     *   Providing a helper function (e.g., `createRequestWithRepo`) to generate `http.Request` objects for tests.
 
-*   **Mock Injection via Context**: The test request helper function must inject the mocked `GlobalRepo` into the request's context using the correct key (`middleware.RepoKey`). This is critical for simulating the application's dependency injection pattern.
+*   **Mock Injection via Context**: The test request helper function must inject the mocked `GlobalRepo` into the request's context using the correct key (`middleware.RepoKey`). For authenticated requests, it should also inject the user's ID into the context using `middleware.UserIDKey`. This is critical for simulating the application's dependency injection and authentication patterns.
     ```go
     // Example from a test suite helper function
     ctxWithRepo := context.WithValue(req.Context(), middleware.RepoKey, mockGlobalRepo)
@@ -47,6 +47,8 @@ To ensure our API handler tests are robust and consistent, please follow these c
 ### Error Handling Conventions
 
 *   **Standardized Error Responses**: Always use `middleware.WriteError(w, http.Status, message)` to send error responses to ensure consistency in format and status codes across the API.
+
+*   **Invalid Path Parameters**: When testing endpoints with path parameters that expect a specific type (e.g., integer IDs), ensure tests cover scenarios where invalid formats are provided (e.g., non-numeric strings for an integer ID). Such cases typically result in `404 Not Found` responses due to route matching failures, rather than `400 Bad Request` from handler-level validation.
 
 ### Dependency Validation
 

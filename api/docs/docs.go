@@ -311,7 +311,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/repos.FindCommoditiesOptions"
+                            "$ref": "#/definitions/repos.FindCommoditiesOpts"
                         }
                     }
                 ],
@@ -1899,7 +1899,7 @@ const docTemplate = `{
                 }
             }
         },
-        "repos.FindCommoditiesOptions": {
+        "repos.FindCommoditiesOpts": {
             "type": "object",
             "properties": {
                 "commodityType": {

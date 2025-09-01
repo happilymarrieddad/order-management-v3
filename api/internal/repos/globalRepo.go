@@ -78,7 +78,7 @@ func (gr *globalRepo) Locations() LocationsRepo {
 }
 
 func (gr *globalRepo) CommodityAttributes() CommodityAttributesRepo {
-	return gr.factory("CommodiatyAttributes", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCommodityAttributesRepo(db) }).(CommodityAttributesRepo)
+	return gr.factory("CommodityAttributes", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCommodityAttributesRepo(db) }).(CommodityAttributesRepo)
 }
 
 func (gr *globalRepo) Commodities() CommoditiesRepo {

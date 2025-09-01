@@ -1,15 +1,17 @@
 package users_test
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
 	mock_repos "github.com/happilymarrieddad/order-management-v3/api/internal/repos/mocks"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
@@ -27,7 +29,9 @@ var (
 	mockCompaniesRepo *mock_repos.MockCompaniesRepo
 	mockAddressesRepo *mock_repos.MockAddressesRepo
 	rr                *httptest.ResponseRecorder
-	ctx               context.Context
+	router            *mux.Router
+	adminUser         *types.User
+	basicUser         *types.User
 )
 
 var _ = BeforeEach(func() {
@@ -43,25 +47,30 @@ var _ = BeforeEach(func() {
 	mockGlobalRepo.EXPECT().Addresses().Return(mockAddressesRepo).AnyTimes()
 
 	rr = httptest.NewRecorder()
-	ctx = context.Background()
+	router = mux.NewRouter()
+	users.AddRoutes(router)
+
+	adminUser = &types.User{ID: 1, Roles: types.Roles{types.RoleAdmin}}
+	basicUser = &types.User{ID: 2, Roles: types.Roles{types.RoleUser}}
 })
 
 var _ = AfterEach(func() {
 	mockCtrl.Finish()
 })
 
-// createRequestWithRepo creates a new HTTP request with the mocked repository
+// newAuthenticatedRequest creates a new HTTP request with the mocked repository
 // injected into the context.
-func createRequestWithRepo(method, url string, body []byte, vars map[string]string) *http.Request {
-	req, err := http.NewRequest(method, url, bytes.NewBuffer(body))
+func newAuthenticatedRequest(method, url string, body io.Reader, user *types.User) *http.Request {
+	req, err := http.NewRequest(method, url, body)
 	Expect(err).NotTo(HaveOccurred())
 
 	ctxWithRepo := context.WithValue(req.Context(), middleware.RepoKey, mockGlobalRepo)
-	req = req.WithContext(ctxWithRepo)
 
-	if vars != nil {
-		req = mux.SetURLVars(req, vars)
+	if user != nil {
+		ctxWithRepo = middleware.AddUserIDToContext(ctxWithRepo, user.ID)
+		// Mock the UsersRepo to return the user for role checks
+		mockUsersRepo.EXPECT().Get(gomock.Any(), user.ID).Return(user, true, nil).AnyTimes()
 	}
 
-	return req
+	return req.WithContext(ctxWithRepo)
 }

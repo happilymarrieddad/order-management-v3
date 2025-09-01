@@ -28,7 +28,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "validation failed: "+err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 

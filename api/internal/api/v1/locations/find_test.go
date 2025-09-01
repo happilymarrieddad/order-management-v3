@@ -1,11 +1,11 @@
 package locations_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/locations"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -15,22 +15,15 @@ import (
 
 var _ = Describe("Find Locations Handler", func() {
 	Context("when locations exist", func() {
-		It("should return a list of locations", func() {
-			findOpts := &repos.LocationFindOpts{
-				CompanyIDs: []int64{1},
-				Limit:      10,
-				Offset:     0,
-			}
-			body, _ := json.Marshal(findOpts)
-
+		It("should return a list of locations for an admin user", func() {
 			foundLocations := []*types.Location{
-				{ID: 1, Name: "Location A", CompanyID: 1},
-				{ID: 2, Name: "Location B", CompanyID: 1},
+				{ID: 1, Name: "Warehouse A"},
+				{ID: 2, Name: "Office B"},
 			}
-			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Eq(findOpts)).Return(foundLocations, int64(2), nil)
+			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.LocationFindOpts{Limit: 10, Offset: 0})).Return(foundLocations, int64(2), nil)
 
-			req := createRequestWithRepo("POST", "/api/v1/locations/find", body, nil)
-			locations.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/locations/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -43,23 +36,18 @@ var _ = Describe("Find Locations Handler", func() {
 			var returnedLocations []types.Location
 			json.Unmarshal(dataBytes, &returnedLocations)
 			Expect(returnedLocations).To(HaveLen(2))
-			Expect(returnedLocations[0].Name).To(Equal("Location A"))
 		})
 	})
 
-	Context("when no locations are found", func() {
-		It("should return an empty list", func() {
-			findOpts := &repos.LocationFindOpts{Names: []string{"Non-existent"}}
-			body, _ := json.Marshal(findOpts)
+	Context("when no locations exist", func() {
+		It("should return an empty list for an admin user", func() {
+			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return([]*types.Location{}, int64(0), nil)
 
-			// The handler will apply a default limit. The mock must expect this.
-			expectedOpts := &repos.LocationFindOpts{Names: []string{"Non-existent"}, Limit: 10}
-			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.Location{}, int64(0), nil)
-
-			req := createRequestWithRepo("POST", "/api/v1/locations/find", body, nil)
-			locations.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/locations/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
+
 			var result types.FindResult
 			err := json.Unmarshal(rr.Body.Bytes(), &result)
 			Expect(err).NotTo(HaveOccurred())
@@ -69,15 +57,27 @@ var _ = Describe("Find Locations Handler", func() {
 	})
 
 	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			dbErr := errors.New("find query failed")
-			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
-
-			req := createRequestWithRepo("POST", "/api/v1/locations/find", []byte(`{}`), nil)
-			locations.Find(rr, req)
-
+		It("should return 500 Internal Server Error", func() {
+			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), errors.New("find query failed"))
+			req := newAuthenticatedRequest("POST", "/locations/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to find locations"))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("POST", "/locations/find", bytes.NewBufferString(`{}`), basicUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("POST", "/locations/find", bytes.NewBufferString(`{}`), nil)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

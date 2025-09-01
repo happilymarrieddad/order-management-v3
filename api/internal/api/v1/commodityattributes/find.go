@@ -37,8 +37,9 @@ func Find(w http.ResponseWriter, r *http.Request) {
 
 	commodityAttributes, count, err := repo.CommodityAttributes().Find(r.Context(), &opts)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
-		return	}
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to find commodity attributes")
+		return
+	}
 
 	response := types.NewFindResult(commodityAttributes, count)
 

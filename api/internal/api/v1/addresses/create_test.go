@@ -1,6 +1,7 @@
 package addresses_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,73 +14,85 @@ import (
 )
 
 var _ = Describe("Create Address Handler", func() {
-	var createPayload map[string]interface{}
+	var (
+		payload      addresses.CreateAddressPayload
+		payloadBytes []byte
+		newAddress   *types.Address
+		err          error
+	)
 
 	BeforeEach(func() {
-		createPayload = map[string]interface{}{
-			"line_1":      "123 Main St",
-			"city":        "Anytown",
-			"state":       "CA",
-			"postal_code": "12345",
+		payload = addresses.CreateAddressPayload{
+			Line1:      "123 Main St",
+			City:       "Anytown",
+			State:      "CA",
+			PostalCode: "12345",
+			Country:    "USA",
+		}
+		payloadBytes, err = json.Marshal(payload)
+		Expect(err).NotTo(HaveOccurred())
+
+		newAddress = &types.Address{
+			ID:         1,
+			Line1:      payload.Line1,
+			City:       payload.City,
+			State:      payload.State,
+			PostalCode: payload.PostalCode,
+			Country:    payload.Country,
+			GlobalCode: "849VCWC8+R9",
 		}
 	})
 
-	Context("with a valid request", func() {
-		It("should create an address successfully", func() {
-			body, _ := json.Marshal(createPayload)
+	Context("when creation is successful", func() {
+		It("should return 201 Created with the new address", func() {
+			// The repo's Create method is responsible for geocoding and persistence.
+			mockAddressesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(newAddress, nil)
 
-			createdAddress := &types.Address{
-				ID:         1,
-				Line1:      "123 Main St",
-				City:       "Anytown",
-				State:      "CA",
-				PostalCode: "12345",
-			}
-
-			mockAddressesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(createdAddress, nil)
-
-			req := createRequestWithRepo("POST", "/api/v1/addresses", body, nil)
-			addresses.Create(rr, req)
+			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusCreated))
 
-			var returnedAddress types.Address
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedAddress)
+			var returnedAddr types.Address
+			err := json.Unmarshal(rr.Body.Bytes(), &returnedAddr)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedAddress.ID).To(Equal(int64(1)))
-			Expect(returnedAddress.Line1).To(Equal("123 Main St"))
+			Expect(returnedAddr.ID).To(Equal(newAddress.ID))
+			Expect(returnedAddr.GlobalCode).To(Equal(newAddress.GlobalCode))
 		})
 	})
 
-	Context("with an invalid request", func() {
+	Context("with invalid input", func() {
 		It("should return 400 for a malformed JSON body", func() {
-			body := []byte(`{"line_1": "bad json",`)
-			req := createRequestWithRepo("POST", "/api/v1/addresses", body, nil)
-			addresses.Create(rr, req)
+			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBufferString(`{]`), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should return 400 for a missing required field (line_1)", func() {
-			delete(createPayload, "line_1")
-			body, _ := json.Marshal(createPayload)
-			req := createRequestWithRepo("POST", "/api/v1/addresses", body, nil)
-			addresses.Create(rr, req)
+		It("should return 400 for a validation error (missing line1)", func() {
+			// This payload is missing the required 'line_1' field.
+			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBufferString(`{"city": "Anytown", "state": "CA", "postal_code": "12345", "country": "USA"}`), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("Field 'line1' is required."))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			body, _ := json.Marshal(createPayload)
-			dbErr := errors.New("unexpected database error")
-
-			mockAddressesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, dbErr)
-
-			req := createRequestWithRepo("POST", "/api/v1/addresses", body, nil)
-			addresses.Create(rr, req)
-
+	Context("when the repository fails", func() {
+		It("should return 500 Internal Server Error", func() {
+			mockAddressesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, errors.New("db insert failed"))
+			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring(dbErr.Error()))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to create address"))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden", func() {
+			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBuffer(payloadBytes), basicUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
 		})
 	})
 })

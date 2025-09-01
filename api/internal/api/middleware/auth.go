@@ -14,7 +14,7 @@ import (
 type contextKey string
 
 // UserIDKey is the key for the user ID in the context.
-const UserIDKey contextKey = "userID"
+const UserIDKey contextKey = "ctx:userID"
 
 // AuthMiddleware checks for a valid JWT in the X-App-Token header.
 // If the token is missing or invalid, it returns a 401 Unauthorized error.
@@ -62,7 +62,7 @@ func AddUserIDToContext(ctx context.Context, userID int64) context.Context {
 func CheckAdminAndWriteError(w http.ResponseWriter, r *http.Request) bool {
 	userID, found := GetUserIDFromContext(r.Context())
 	if !found {
-		WriteError(w, http.StatusUnauthorized, "user ID not found in context")
+		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return true
 	}
 
@@ -78,7 +78,7 @@ func CheckAdminAndWriteError(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	if !user.Roles.HasRole(types.RoleAdmin) {
-		WriteError(w, http.StatusForbidden, "only administrators can perform this action")
+		WriteError(w, http.StatusForbidden, "forbidden")
 		return true
 	}
 

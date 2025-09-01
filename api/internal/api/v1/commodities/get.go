@@ -31,7 +31,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 
 	commodity, found, err := repo.Commodities().Get(r.Context(), id)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get commodity")
 		return
 	}
 	if !found {

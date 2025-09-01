@@ -72,7 +72,7 @@ func (mr *MockCommoditiesRepoMockRecorder) CreateTx(ctx, tx, commodity any) *gom
 }
 
 // Find mocks base method.
-func (m *MockCommoditiesRepo) Find(ctx context.Context, opts *repos.FindCommoditiesOptions) ([]*types.Commodity, int64, error) {
+func (m *MockCommoditiesRepo) Find(ctx context.Context, opts *repos.FindCommoditiesOpts) ([]*types.Commodity, int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Find", ctx, opts)
 	ret0, _ := ret[0].([]*types.Commodity)

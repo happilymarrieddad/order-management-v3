@@ -1,4 +1,4 @@
-package addresses_test
+package commodities_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodities"
 	mock_repos "github.com/happilymarrieddad/order-management-v3/api/internal/repos/mocks"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -17,34 +17,34 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestAddresses(t *testing.T) {
+func TestCommodities(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Addresses Suite")
+	RunSpecs(t, "Commodities Suite")
 }
 
 var (
-	mockCtrl          *gomock.Controller
-	mockGlobalRepo    *mock_repos.MockGlobalRepo
-	mockAddressesRepo *mock_repos.MockAddressesRepo
-	mockUsersRepo     *mock_repos.MockUsersRepo
-	rr                *httptest.ResponseRecorder
-	router            *mux.Router
-	adminUser         *types.User
-	basicUser         *types.User
+	mockCtrl            *gomock.Controller
+	mockGlobalRepo      *mock_repos.MockGlobalRepo
+	mockCommoditiesRepo *mock_repos.MockCommoditiesRepo
+	mockUsersRepo       *mock_repos.MockUsersRepo
+	rr                  *httptest.ResponseRecorder
+	router              *mux.Router
+	adminUser           *types.User
+	basicUser           *types.User
 )
 
 var _ = BeforeEach(func() {
 	mockCtrl = gomock.NewController(GinkgoT())
 	mockGlobalRepo = mock_repos.NewMockGlobalRepo(mockCtrl)
-	mockAddressesRepo = mock_repos.NewMockAddressesRepo(mockCtrl)
+	mockCommoditiesRepo = mock_repos.NewMockCommoditiesRepo(mockCtrl)
 	mockUsersRepo = mock_repos.NewMockUsersRepo(mockCtrl)
 
-	mockGlobalRepo.EXPECT().Addresses().Return(mockAddressesRepo).AnyTimes()
+	mockGlobalRepo.EXPECT().Commodities().Return(mockCommoditiesRepo).AnyTimes()
 	mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo).AnyTimes()
 
 	rr = httptest.NewRecorder()
 	router = mux.NewRouter()
-	addresses.AddRoutes(router) // Use the new routes file
+	commodities.AddRoutes(router)
 
 	adminUser = &types.User{ID: 1, Roles: types.Roles{types.RoleAdmin}}
 	basicUser = &types.User{ID: 2, Roles: types.Roles{types.RoleUser}}

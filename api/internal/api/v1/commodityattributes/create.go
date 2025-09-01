@@ -32,7 +32,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 
@@ -46,7 +46,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 			middleware.WriteError(w, http.StatusConflict, "Commodity attribute with this name already exists")
 			return
 		}
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to create commodity attribute")
 		return
 	}
 

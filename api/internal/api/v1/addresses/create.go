@@ -10,13 +10,7 @@ import (
 
 // Create handles the creation of a new address.
 func Create(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Line1      string  `json:"line_1" validate:"required"`
-		Line2      *string `json:"line_2"`
-		City       string  `json:"city" validate:"required"`
-		State      string  `json:"state" validate:"required"`
-		PostalCode string  `json:"postal_code" validate:"required"`
-	}
+	var payload CreateAddressPayload
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
@@ -24,7 +18,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 
@@ -32,18 +26,16 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	address := &types.Address{
 		Line1:      payload.Line1,
+		Line2:      payload.Line2,
 		City:       payload.City,
 		State:      payload.State,
 		PostalCode: payload.PostalCode,
-	}
-
-	if payload.Line2 != nil {
-		address.Line2 = *payload.Line2
+		Country:    payload.Country,
 	}
 
 	newAddress, err := repo.Addresses().Create(r.Context(), address)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to create address")
 		return
 	}
 

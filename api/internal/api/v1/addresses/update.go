@@ -40,14 +40,14 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := types.Validate(payload); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, err.Error())
+		middleware.WriteError(w, http.StatusBadRequest, middleware.FormatValidationErrors(err))
 		return
 	}
 
 	// First, get the existing address to ensure it exists
 	address, found, err := repo.Addresses().Get(r.Context(), id)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get address")
 		return
 	}
 	if !found {
@@ -56,18 +56,27 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update fields
-	address.Line1 = payload.Line1
+	if payload.Line1 != nil {
+		address.Line1 = *payload.Line1
+	}
 	if payload.Line2 != nil {
 		address.Line2 = *payload.Line2
-	} else {
-		address.Line2 = "" // Clear the field if null is passed
 	}
-	address.City = payload.City
-	address.State = payload.State
-	address.PostalCode = payload.PostalCode
+	if payload.City != nil {
+		address.City = *payload.City
+	}
+	if payload.State != nil {
+		address.State = *payload.State
+	}
+	if payload.PostalCode != nil {
+		address.PostalCode = *payload.PostalCode
+	}
+	if payload.Country != nil {
+		address.Country = *payload.Country
+	}
 
 	if err := repo.Addresses().Update(r.Context(), address); err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to update address")
 		return
 	}
 

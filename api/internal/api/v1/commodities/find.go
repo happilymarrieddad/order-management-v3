@@ -14,36 +14,36 @@ import (
 // @Tags         commodities
 // @Accept       json
 // @Produce      json
-// @Param        opts body      repos.FindCommoditiesOptions true "Find options"
-// @Success      200  {object}  types.FindResult{data=[]types.Commodity} "A list of commodities"
-// @Failure      400  {object}  middleware.ErrorResponse "Bad Request"
-// @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
+// @Param        opts  body      repos.FindCommoditiesOpts  true  "Find options"
+// @Success      200   {object}  types.FindResult{data=[]types.Commodity} "A list of commodities"
+// @Failure      400   {object}  middleware.ErrorResponse "Bad Request"
+// @Failure      500   {object}  middleware.ErrorResponse "Internal Server Error"
 // @Security     AppTokenAuth
 // @Router       /commodities/find [post]
 func Find(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
 
-	var opts repos.FindCommoditiesOptions
-	// Decode the request body into the options struct
+	var opts repos.FindCommoditiesOpts
 	if err := json.NewDecoder(r.Body).Decode(&opts); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	// Set default limit if none is provided or if it's invalid.
-	if opts.Limit <= 0 {
+	// Apply default limit if not provided
+	if opts.Limit == 0 {
 		opts.Limit = 10
 	}
 
 	commodities, count, err := repo.Commodities().Find(r.Context(), &opts)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to find commodities")
 		return
 	}
 
-	response := types.NewFindResult(commodities, count)
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(types.FindResult{
+		Data:  commodities,
+		Total: count,
+	})
 }

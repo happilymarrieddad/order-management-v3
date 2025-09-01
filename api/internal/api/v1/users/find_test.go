@@ -1,11 +1,11 @@
 package users_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -23,8 +23,8 @@ var _ = Describe("Find Users Handler", func() {
 			expectedOpts := &repos.UserFindOpts{Limit: 10, Offset: 0}
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(foundUsers, int64(2), nil)
 
-			req := createRequestWithRepo("POST", "/api/v1/users/find", []byte(`{}`), nil)
-			users.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -40,8 +40,8 @@ var _ = Describe("Find Users Handler", func() {
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(opts)).Return(foundUsers, int64(1), nil)
 
 			body, _ := json.Marshal(opts)
-			req := createRequestWithRepo("POST", "/api/v1/users/find", body, nil)
-			users.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -61,8 +61,8 @@ var _ = Describe("Find Users Handler", func() {
 			expectedOpts := &repos.UserFindOpts{Emails: []string{"notfound@example.com"}, Limit: 10}
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.User{}, int64(0), nil)
 
-			req := createRequestWithRepo("POST", "/api/v1/users/find", body, nil)
-			users.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -77,8 +77,8 @@ var _ = Describe("Find Users Handler", func() {
 	Context("with an invalid request", func() {
 		It("should return 400 for a malformed JSON body", func() {
 			body := []byte(`{"emails": ["bad@json.com"]`) // Malformed JSON
-			req := createRequestWithRepo("POST", "/api/v1/users/find", body, nil)
-			users.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
@@ -88,10 +88,27 @@ var _ = Describe("Find Users Handler", func() {
 			dbErr := errors.New("find database error")
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
 
-			req := createRequestWithRepo("POST", "/api/v1/users/find", []byte(`{}`), nil)
-			users.Find(rr, req)
+			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), basicUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
+		})
+
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), nil)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

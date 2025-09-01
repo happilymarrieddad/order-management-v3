@@ -13,7 +13,7 @@ import (
 type repoContextKey string
 
 // RepoKey is the key for the GlobalRepo in the context.
-const RepoKey repoContextKey = "repo"
+const RepoKey repoContextKey = "ctx:repo"
 
 // RepoMiddleware creates a new middleware that injects the GlobalRepo into the request context.
 func RepoMiddleware(repo repos.GlobalRepo) mux.MiddlewareFunc {

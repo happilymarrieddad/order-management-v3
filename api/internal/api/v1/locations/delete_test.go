@@ -4,44 +4,60 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/locations"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 )
 
 var _ = Describe("Delete Location Handler", func() {
-	Context("with a valid request", func() {
-		It("should delete the location successfully", func() {
-			locationID := int64(123)
-			mockLocationsRepo.EXPECT().Delete(gomock.Any(), locationID).Return(nil)
+	Context("when deletion is successful", func() {
+		It("should return 204 No Content for an admin user", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(nil, true, nil)
+			mockLocationsRepo.EXPECT().Delete(gomock.Any(), int64(1)).Return(nil)
 
-			req := createRequestWithRepo("DELETE", "/api/v1/locations/123", nil, map[string]string{"id": "123"})
-			locations.Delete(rr, req)
+			req := newAuthenticatedRequest("DELETE", "/locations/1", nil, adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusNoContent))
 		})
 	})
 
-	Context("with an invalid request", func() {
-		It("should return 400 for a non-integer ID", func() {
-			req := createRequestWithRepo("DELETE", "/api/v1/locations/abc", nil, map[string]string{"id": "abc"})
-			locations.Delete(rr, req)
+	Context("when the location does not exist", func() {
+		It("should return 404 Not Found", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
 
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			req := newAuthenticatedRequest("DELETE", "/locations/999", nil, adminUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			locationID := int64(500)
-			dbErr := errors.New("db delete failed")
-			mockLocationsRepo.EXPECT().Delete(gomock.Any(), locationID).Return(dbErr)
+	Context("when the repository fails", func() {
+		It("should return 500 on delete failure", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(nil, true, nil)
+			mockLocationsRepo.EXPECT().Delete(gomock.Any(), int64(1)).Return(errors.New("db delete failed"))
 
-			req := createRequestWithRepo("DELETE", "/api/v1/locations/500", nil, map[string]string{"id": "500"})
-			locations.Delete(rr, req)
+			req := newAuthenticatedRequest("DELETE", "/locations/1", nil, adminUser)
+			router.ServeHTTP(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+			Expect(rr.Body.String()).To(ContainSubstring("unable to delete location"))
+		})
+	})
+
+	Context("when the user is not an admin", func() {
+		It("should return 403 Forbidden for a non-admin user", func() {
+			req := newAuthenticatedRequest("DELETE", "/locations/1", nil, basicUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+		})
+
+		It("should return 401 Unauthorized for an unauthenticated user", func() {
+			req := newAuthenticatedRequest("DELETE", "/locations/1", nil, nil)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 })

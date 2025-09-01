@@ -300,7 +300,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/repos.FindCommoditiesOptions"
+                            "$ref": "#/definitions/repos.FindCommoditiesOpts"
                         }
                     }
                 ],
@@ -1888,7 +1888,7 @@
                 }
             }
         },
-        "repos.FindCommoditiesOptions": {
+        "repos.FindCommoditiesOpts": {
             "type": "object",
             "properties": {
                 "commodityType": {
