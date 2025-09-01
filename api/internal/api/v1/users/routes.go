@@ -13,10 +13,10 @@ func AddRoutes(r *mux.Router) {
 	// Routes accessible to any authenticated user
 	s.HandleFunc("", Create).Methods("POST")
 	s.HandleFunc("/{id:[0-9]+}", Get).Methods("GET")
+	s.HandleFunc("/{id:[0-9]+}", Update).Methods("PUT")
 
 	// Routes for admin users only
 	adminRouter := s.NewRoute().Subrouter()
 	adminRouter.Use(middleware.AuthUserAdminRequiredMuxMiddleware())
 	adminRouter.HandleFunc("/find", Find).Methods("POST")
-	adminRouter.HandleFunc("/{id:[0-9]+}", Update).Methods("PUT")
 }

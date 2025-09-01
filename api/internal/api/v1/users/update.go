@@ -31,7 +31,21 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, found, err := repo.Users().Get(r.Context(), id)
+	// Get the authenticated user to check for permissions
+	authUserID, found := middleware.GetUserIDFromContext(r.Context())
+	if !found {
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	authUser, found, err := repo.Users().Get(r.Context(), authUserID)
+	if err != nil || !found {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get authenticated user")
+		return
+	}
+
+	// Get the user to be updated
+	targetUser, found, err := repo.Users().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get user")
 		return
@@ -39,6 +53,15 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		middleware.WriteError(w, http.StatusNotFound, "user not found")
 		return
+	}
+
+	// Admins can update any user.
+	// Non-admins can only update themselves.
+	if !authUser.Roles.HasRole(types.RoleAdmin) {
+		if authUser.ID != targetUser.ID {
+			middleware.WriteError(w, http.StatusForbidden, "user not authorized to update this user")
+			return
+		}
 	}
 
 	// Validate the new address exists before updating the user
@@ -52,16 +75,16 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user.FirstName = payload.FirstName
-	user.LastName = payload.LastName
-	user.AddressID = payload.AddressID
+	targetUser.FirstName = payload.FirstName
+	targetUser.LastName = payload.LastName
+	targetUser.AddressID = payload.AddressID
 
-	if err := repo.Users().Update(r.Context(), user); err != nil {
+	if err := repo.Users().Update(r.Context(), targetUser); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update user")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(targetUser)
 }

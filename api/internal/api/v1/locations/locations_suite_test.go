@@ -25,6 +25,7 @@ func TestLocations(t *testing.T) {
 var (
 	mockCtrl          *gomock.Controller
 	mockGlobalRepo    *mock_repos.MockGlobalRepo
+	mockCompaniesRepo *mock_repos.MockCompaniesRepo
 	mockLocationsRepo *mock_repos.MockLocationsRepo
 	mockAddressesRepo *mock_repos.MockAddressesRepo
 	mockUsersRepo     *mock_repos.MockUsersRepo
@@ -37,11 +38,13 @@ var (
 var _ = BeforeEach(func() {
 	mockCtrl = gomock.NewController(GinkgoT())
 	mockGlobalRepo = mock_repos.NewMockGlobalRepo(mockCtrl)
+	mockCompaniesRepo = mock_repos.NewMockCompaniesRepo(mockCtrl)
 	mockLocationsRepo = mock_repos.NewMockLocationsRepo(mockCtrl)
 	mockAddressesRepo = mock_repos.NewMockAddressesRepo(mockCtrl)
 	mockUsersRepo = mock_repos.NewMockUsersRepo(mockCtrl)
 
 	mockGlobalRepo.EXPECT().Locations().Return(mockLocationsRepo).AnyTimes()
+	mockGlobalRepo.EXPECT().Companies().Return(mockCompaniesRepo).AnyTimes()
 	mockGlobalRepo.EXPECT().Addresses().Return(mockAddressesRepo).AnyTimes()
 	mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo).AnyTimes()
 

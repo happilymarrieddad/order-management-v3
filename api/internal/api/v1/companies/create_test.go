@@ -39,6 +39,7 @@ var _ = Describe("Create Company Handler", func() {
 
 	Context("when creation is successful", func() {
 		It("should return 201 Created with the new company", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
 			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Do(
 				func(ctx context.Context, comp *types.Company) {
 					comp.ID = newCompany.ID
@@ -67,8 +68,20 @@ var _ = Describe("Create Company Handler", func() {
 		})
 	})
 
+	Context("when a dependency is not found", func() {
+		It("should return 400 if the address does not exist", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, nil)
+
+			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
+		})
+	})
+
 	Context("when the repository fails", func() {
 		It("should return 500 Internal Server Error", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
 			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db insert failed"))
 			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), adminUser)
 			router.ServeHTTP(rr, req)

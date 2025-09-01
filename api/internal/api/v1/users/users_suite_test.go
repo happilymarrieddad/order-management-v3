@@ -50,8 +50,8 @@ var _ = BeforeEach(func() {
 	router = mux.NewRouter()
 	users.AddRoutes(router)
 
-	adminUser = &types.User{ID: 1, Roles: types.Roles{types.RoleAdmin}}
-	basicUser = &types.User{ID: 2, Roles: types.Roles{types.RoleUser}}
+	adminUser = &types.User{ID: 1, CompanyID: 1, Roles: types.Roles{types.RoleAdmin}}
+	basicUser = &types.User{ID: 2, CompanyID: 2, Roles: types.Roles{types.RoleUser}}
 })
 
 var _ = AfterEach(func() {

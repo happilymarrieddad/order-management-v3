@@ -30,6 +30,19 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get the authenticated user to check for permissions
+	authUserID, found := middleware.GetUserIDFromContext(r.Context())
+	if !found {
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	authUser, found, err := repo.Users().Get(r.Context(), authUserID)
+	if err != nil || !found {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get authenticated user")
+		return
+	}
+
 	loc, found, err := repo.Locations().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get location")
@@ -38,6 +51,15 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		middleware.WriteError(w, http.StatusNotFound, "location not found")
 		return
+	}
+
+	// Admins can update any location.
+	// Non-admins can only update locations in their own company.
+	if !authUser.Roles.HasRole(types.RoleAdmin) {
+		if authUser.CompanyID != loc.CompanyID {
+			middleware.WriteError(w, http.StatusForbidden, "user not authorized to update this location")
+			return
+		}
 	}
 
 	// Validate new address if provided

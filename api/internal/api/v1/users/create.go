@@ -8,20 +8,11 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-// @Summary      Create a new user
-// @Description  Creates a new user account with the provided details.
-// @Tags         users
-// @Accept       json
-// @Produce      json
-// @Param        user body      CreateUserPayload        true  "User Creation Payload"
-// @Success      201  {object}  types.User               "Successfully created user"
-// @Failure      400  {object}  middleware.ErrorResponse "Bad Request - Invalid input or user already exists"
-// @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
-// @Router       /users [post]
-// Create handles the HTTP request for creating a new user.
+// Create handles the creation of a new user.
 func Create(w http.ResponseWriter, r *http.Request) {
-	var payload CreateUserPayload
+	repo := middleware.GetRepo(r.Context())
 
+	var payload CreateUserPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -32,11 +23,32 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	// Get the authenticated user to check for permissions
+	authUserID, found := middleware.GetUserIDFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
-	_, found, err := repo.Users().GetByEmail(r.Context(), payload.Email)
+	authUser, found, err := repo.Users().Get(r.Context(), authUserID)
+	if err != nil || !found {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get authenticated user")
+		return
+	}
+
+	// Admins can create users in any company.
+	// Non-admins can only create users in their own company.
+	if !authUser.Roles.HasRole(types.RoleAdmin) {
+		if authUser.CompanyID != payload.CompanyID {
+			middleware.WriteError(w, http.StatusForbidden, "user not authorized to create users for this company")
+			return
+		}
+	}
+
+	// Check if user with that email already exists
+	_, found, err = repo.Users().GetByEmail(r.Context(), payload.Email)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to check for existing user")
 		return
 	}
 	if found {
@@ -44,9 +56,10 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if dependencies exist
 	_, found, err = repo.Companies().Get(r.Context(), payload.CompanyID)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate company")
 		return
 	}
 	if !found {
@@ -56,7 +69,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 
 	_, found, err = repo.Addresses().Get(r.Context(), payload.AddressID)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 		return
 	}
 	if !found {
@@ -65,21 +78,21 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := &types.User{
+		CompanyID: payload.CompanyID,
 		Email:     payload.Email,
 		Password:  payload.Password,
+		AddressID: payload.AddressID,
 		FirstName: payload.FirstName,
 		LastName:  payload.LastName,
-		CompanyID: payload.CompanyID,
-		AddressID: payload.AddressID,
-		Roles:     types.Roles{types.RoleUser},
+		Roles:     types.Roles{types.RoleUser}, // Default to user role
 	}
 
 	if err := repo.Users().Create(r.Context(), user); err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, err.Error())
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to create user")
 		return
 	}
 
-	user.Password = ""
+	user.Password = "" // Never return password
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

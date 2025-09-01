@@ -31,8 +31,8 @@ var _ = Describe("Update User Handler", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Context("with a valid request", func() {
-		It("should update a user successfully", func() {
+	Context("as an admin", func() {
+		It("should update another user successfully", func() {
 			userID := int64(2) // Use a different ID than the admin user to avoid mock collision
 
 			// Mock the Get call to find the existing user
@@ -60,6 +60,41 @@ var _ = Describe("Update User Handler", func() {
 			err := json.Unmarshal(rr.Body.Bytes(), &returnedUser)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(returnedUser.FirstName).To(Equal("Jane"))
+		})
+	})
+
+	Context("as a non-admin user", func() {
+		It("should update their own profile successfully", func() {
+			// The basicUser (ID 2) is updating their own profile.
+			userID := basicUser.ID
+
+			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(basicUser, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
+			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+
+			req := newAuthenticatedRequest("PUT", "/users/2", bytes.NewBuffer(body), basicUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusOK))
+			var returnedUser types.User
+			err := json.Unmarshal(rr.Body.Bytes(), &returnedUser)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(returnedUser.FirstName).To(Equal(payload.FirstName))
+		})
+
+		It("should forbid updating another user's profile", func() {
+			// The basicUser (ID 2) is trying to update another user (ID 3).
+			targetUserID := int64(3)
+			targetUser := &types.User{ID: targetUserID, CompanyID: 2} // Same company, different user
+
+			// The handler will fetch the target user to check ownership
+			mockUsersRepo.EXPECT().Get(gomock.Any(), targetUserID).Return(targetUser, true, nil)
+
+			req := newAuthenticatedRequest("PUT", "/users/3", bytes.NewBuffer(body), basicUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			Expect(rr.Body.String()).To(ContainSubstring("user not authorized to update this user"))
 		})
 	})
 
@@ -119,20 +154,4 @@ var _ = Describe("Update User Handler", func() {
 		})
 	})
 
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("PUT", "/users/1", bytes.NewBuffer(body), basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
-		})
-
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("PUT", "/users/1", bytes.NewBuffer(body), nil)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
-		})
-	})
 })

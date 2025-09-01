@@ -41,6 +41,8 @@ var _ = Describe("Create Location Handler", func() {
 
 	Context("when creation is successful", func() {
 		It("should return 201 Created with the new location", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
 			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Do(
 				func(ctx context.Context, loc *types.Location) {
 					loc.ID = newLocation.ID
@@ -69,8 +71,31 @@ var _ = Describe("Create Location Handler", func() {
 		})
 	})
 
+	Context("when a dependency is not found", func() {
+		It("should return 400 if the company does not exist", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(nil, false, nil)
+
+			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("company not found"))
+		})
+
+		It("should return 400 if the address does not exist", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, nil)
+
+			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
+			router.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
+		})
+	})
+
 	Context("when the repository fails", func() {
 		It("should return 500 Internal Server Error", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
 			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db insert failed"))
 			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
 			router.ServeHTTP(rr, req)

@@ -36,9 +36,11 @@ var _ = Describe("Create User Handler", func() {
 	})
 
 	Context("with a valid request", func() {
-		It("should create a user successfully", func() {
+		It("should allow a non-admin to create a user in their own company", func() {
+			// basicUser is in company 2, so the payload must be for company 2
+			payload.CompanyID = basicUser.CompanyID
+			body, _ = json.Marshal(payload)
 
-			// Expectations must be in the order they are called in the handler.
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(nil, false, nil)
 			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
@@ -96,6 +98,9 @@ var _ = Describe("Create User Handler", func() {
 
 	Context("when a dependency check fails", func() {
 		It("should return 400 if the user email already exists", func() {
+			// Align company ID to pass authorization check
+			payload.CompanyID = basicUser.CompanyID
+			body, _ = json.Marshal(payload)
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(&types.User{Email: payload.Email}, true, nil)
 
 			req := newAuthenticatedRequest("POST", "/users", bytes.NewBuffer(body), basicUser)
@@ -105,6 +110,9 @@ var _ = Describe("Create User Handler", func() {
 		})
 
 		It("should return 500 if GetByEmail fails", func() {
+			// Align company ID to pass authorization check
+			payload.CompanyID = basicUser.CompanyID
+			body, _ = json.Marshal(payload)
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(nil, false, errors.New("db error"))
 
 			req := newAuthenticatedRequest("POST", "/users", bytes.NewBuffer(body), basicUser)
@@ -113,6 +121,9 @@ var _ = Describe("Create User Handler", func() {
 		})
 
 		It("should return 400 if the company does not exist", func() {
+			// Align company ID to pass authorization check
+			payload.CompanyID = basicUser.CompanyID
+			body, _ = json.Marshal(payload)
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(nil, false, nil)
 			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(nil, false, nil)
 
@@ -123,6 +134,9 @@ var _ = Describe("Create User Handler", func() {
 		})
 
 		It("should return 500 if checking company existence fails", func() {
+			// Align company ID to pass authorization check
+			payload.CompanyID = basicUser.CompanyID
+			body, _ = json.Marshal(payload)
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(nil, false, nil)
 			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(nil, false, errors.New("company db error"))
 
@@ -132,6 +146,9 @@ var _ = Describe("Create User Handler", func() {
 		})
 
 		It("should return 400 if the address does not exist", func() {
+			// Align company ID to pass authorization check
+			payload.CompanyID = basicUser.CompanyID
+			body, _ = json.Marshal(payload)
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(nil, false, nil)
 			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, nil)
@@ -143,6 +160,9 @@ var _ = Describe("Create User Handler", func() {
 		})
 
 		It("should return 500 if checking address existence fails", func() {
+			// Align company ID to pass authorization check
+			payload.CompanyID = basicUser.CompanyID
+			body, _ = json.Marshal(payload)
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(nil, false, nil)
 			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, errors.New("address db error"))
@@ -150,6 +170,33 @@ var _ = Describe("Create User Handler", func() {
 			req := newAuthenticatedRequest("POST", "/users", bytes.NewBuffer(body), basicUser)
 			router.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
+		})
+	})
+
+	Context("authorization", func() {
+		It("should forbid a non-admin from creating a user in another company", func() {
+			// basicUser is in company 2, but the payload is for company 1 (the default)
+			req := newAuthenticatedRequest("POST", "/users", bytes.NewBuffer(body), basicUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			Expect(rr.Body.String()).To(ContainSubstring("user not authorized to create users for this company"))
+		})
+
+		It("should allow an admin to create a user in another company", func() {
+			// adminUser is in company 1, payload is for company 555
+			payload.CompanyID = 555
+			body, _ = json.Marshal(payload)
+
+			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), payload.Email).Return(nil, false, nil)
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
+			mockUsersRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+			req := newAuthenticatedRequest("POST", "/users", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rr, req)
+
+			Expect(rr.Code).To(Equal(http.StatusCreated))
 		})
 	})
 })

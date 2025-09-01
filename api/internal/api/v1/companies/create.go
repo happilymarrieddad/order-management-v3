@@ -22,6 +22,17 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate that the address exists
+	_, found, err := repo.Addresses().Get(r.Context(), payload.AddressID)
+	if err != nil {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
+		return
+	}
+	if !found {
+		middleware.WriteError(w, http.StatusBadRequest, "address not found")
+		return
+	}
+
 	company := &types.Company{
 		Name:      payload.Name,
 		AddressID: payload.AddressID,

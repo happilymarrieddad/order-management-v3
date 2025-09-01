@@ -26,6 +26,7 @@ var (
 	mockCtrl          *gomock.Controller
 	mockGlobalRepo    *mock_repos.MockGlobalRepo
 	mockCompaniesRepo *mock_repos.MockCompaniesRepo
+	mockAddressesRepo *mock_repos.MockAddressesRepo
 	mockUsersRepo     *mock_repos.MockUsersRepo
 	rr                *httptest.ResponseRecorder
 	router            *mux.Router
@@ -37,18 +38,20 @@ var _ = BeforeEach(func() {
 	mockCtrl = gomock.NewController(GinkgoT())
 	mockGlobalRepo = mock_repos.NewMockGlobalRepo(mockCtrl)
 	mockCompaniesRepo = mock_repos.NewMockCompaniesRepo(mockCtrl)
+	mockAddressesRepo = mock_repos.NewMockAddressesRepo(mockCtrl)
 	mockUsersRepo = mock_repos.NewMockUsersRepo(mockCtrl)
 
 	// Set up the mock chain: GlobalRepo -> Companies() -> MockCompaniesRepo
 	mockGlobalRepo.EXPECT().Companies().Return(mockCompaniesRepo).AnyTimes()
 	mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo).AnyTimes()
+	mockGlobalRepo.EXPECT().Addresses().Return(mockAddressesRepo).AnyTimes()
 
 	rr = httptest.NewRecorder()
 	router = mux.NewRouter()
 	companies.AddRoutes(router)
 
-	adminUser = &types.User{ID: 1, Roles: types.Roles{types.RoleAdmin}}
-	basicUser = &types.User{ID: 2, Roles: types.Roles{types.RoleUser}}
+	adminUser = &types.User{ID: 1, CompanyID: 1, Roles: types.Roles{types.RoleAdmin}}
+	basicUser = &types.User{ID: 2, CompanyID: 2, Roles: types.Roles{types.RoleUser}}
 })
 
 var _ = AfterEach(func() {

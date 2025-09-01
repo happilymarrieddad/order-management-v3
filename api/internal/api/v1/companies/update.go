@@ -30,6 +30,19 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get the authenticated user to check for permissions
+	authUserID, found := middleware.GetUserIDFromContext(r.Context())
+	if !found {
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	authUser, found, err := repo.Users().Get(r.Context(), authUserID)
+	if err != nil || !found {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get authenticated user")
+		return
+	}
+
 	company, found, err := repo.Companies().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get company")
@@ -40,10 +53,29 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Admins can update any company.
+	// Non-admins can only update their own company.
+	if !authUser.Roles.HasRole(types.RoleAdmin) {
+		if authUser.CompanyID != company.ID {
+			middleware.WriteError(w, http.StatusForbidden, "user not authorized to update this company")
+			return
+		}
+	}
+
 	if payload.Name != nil {
 		company.Name = *payload.Name
 	}
 	if payload.AddressID != nil {
+		// Validate the new address exists before updating
+		_, found, err := repo.Addresses().Get(r.Context(), *payload.AddressID)
+		if err != nil {
+			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
+			return
+		}
+		if !found {
+			middleware.WriteError(w, http.StatusBadRequest, "address not found")
+			return
+		}
 		company.AddressID = *payload.AddressID
 	}
 
