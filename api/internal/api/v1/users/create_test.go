@@ -152,5 +152,4 @@ var _ = Describe("Create User Handler", func() {
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
-
 })
