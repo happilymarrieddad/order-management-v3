@@ -7,6 +7,7 @@ import (
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 	"googlemaps.github.io/maps"
@@ -29,15 +30,15 @@ func loadConfig() (*appConfig, error) {
 		}
 	}
 
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "postgres")
-	dbPassword := getEnv("DB_PASSWORD", "postgres")
-	dbName := getEnv("DB_NAME", "postgres")
-	dbSSLMode := getEnv("DB_SSL_MODE", "disable")
+	dbHost := utils.GetEnv("DB_HOST", "localhost")
+	dbPort := utils.GetEnv("DB_PORT", "5432")
+	dbUser := utils.GetEnv("DB_USER", "postgres")
+	dbPassword := utils.GetEnv("DB_PASSWORD", "postgres")
+	dbName := utils.GetEnv("DB_NAME", "postgres")
+	dbSslMode := utils.GetEnv("DB_SSL_MODE", "disable")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		dbHost, dbPort, dbUser, dbPassword, dbName, dbSSLMode)
+		dbHost, dbPort, dbUser, dbPassword, dbName, dbSslMode)
 
 	cfg := &appConfig{
 		DSN:          dsn,
@@ -45,13 +46,6 @@ func loadConfig() (*appConfig, error) {
 	}
 
 	return cfg, nil
-}
-
-func getEnv(key, fallback string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
-	}
-	return fallback
 }
 
 // In cmd/api/main.go

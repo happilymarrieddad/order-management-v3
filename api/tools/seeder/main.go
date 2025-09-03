@@ -55,7 +55,7 @@ func main() {
 		logger.Fatalf("FATAL: unable to connect to db: %v", err)
 	}
 	logger.Println("database connection established")
-	db.Exec("TRUNCATE TABLE users, companies, addresses RESTART IDENTITY CASCADE")
+	db.Exec("TRUNCATE TABLE users, companies, addresses, locations, commodity_attributes, commodities, company_attributes RESTART IDENTITY CASCADE")
 
 	// --- Repository Initialization ---
 	// We pass nil for the Google Client as it's not needed for seeding.
@@ -96,7 +96,10 @@ func main() {
 	// --- Output ---
 	fmt.Println("\n" + "========================================")
 	fmt.Println("🌱 Seeding Complete!")
+	fmt.Println("A simple company has been created for API testing.")
+	fmt.Printf("Id:       %d\n", comp.ID)
 	fmt.Println("A simple user has been created for API testing.")
+	fmt.Printf("Id:       %d\n", usersToCreate[0].ID)
 	fmt.Printf("Email:    %s\n", usersToCreate[0].Email)
 	fmt.Printf("Password: %s\n", "password")
 	fmt.Println("========================================")

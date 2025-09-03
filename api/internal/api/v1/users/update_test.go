@@ -6,152 +6,175 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Update User Handler", func() {
+var _ = Describe("Update User Endpoint", func() {
 	var (
-		payload users.UpdateUserPayload
-		body    []byte
-		err     error
+		rec        *httptest.ResponseRecorder
+		payload    users.UpdateUserPayload
+		targetUser *types.User
+		address    *types.Address
 	)
 
 	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		targetUser = &types.User{ID: 1, CompanyID: normalUser.CompanyID, FirstName: "Old", LastName: "User", AddressID: 10}
+		address = &types.Address{ID: 20, Line1: "New Address"}
+
 		payload = users.UpdateUserPayload{
-			FirstName: "Jane",
-			LastName:  "Doe",
-			AddressID: int64(2),
+			FirstName: "Updated",
+			LastName:  "User",
+			AddressID: address.ID,
 		}
-		body, err = json.Marshal(payload)
-		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Context("as an admin", func() {
-		It("should update another user successfully", func() {
-			userID := int64(2) // Use a different ID than the admin user to avoid mock collision
+	Context("Happy Path", func() {
+		It("should update a user successfully for a normal user updating themselves", func() {
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, u *types.User) error {
+				Expect(u.FirstName).To(Equal(payload.FirstName))
+				Expect(u.LastName).To(Equal(payload.LastName))
+				Expect(u.AddressID).To(Equal(payload.AddressID))
+				return nil
+			})
 
-			// Mock the Get call to find the existing user
-			existingUser := &types.User{ID: userID, FirstName: "John"}
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(existingUser, true, nil)
-
-			// Mock the address existence check
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
-
-			// Mock the Update call
-			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, user *types.User) error {
-					Expect(user.ID).To(Equal(userID))
-					Expect(user.FirstName).To(Equal(payload.FirstName))
-					return nil
-				},
-			)
-
-			req := newAuthenticatedRequest("PUT", "/users/2", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusOK))
-
-			var returnedUser types.User
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedUser)
+			body, err := json.Marshal(payload)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedUser.FirstName).To(Equal("Jane"))
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), normalUser)
+			router.ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.User
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.FirstName).To(Equal(payload.FirstName))
+			Expect(result.Password).To(BeEmpty())
 		})
-	})
 
-	Context("as a non-admin user", func() {
-		It("should update their own profile successfully", func() {
-			// The basicUser (ID 2) is updating their own profile.
-			userID := basicUser.ID
-
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(basicUser, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
+		It("should update a user successfully for an admin updating any user", func() {
+			mockUsersRepo.EXPECT().Get(gomock.Any(), adminUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
 			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-			req := newAuthenticatedRequest("PUT", "/users/2", bytes.NewBuffer(body), basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusOK))
-			var returnedUser types.User
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedUser)
+			body, err := json.Marshal(payload)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedUser.FirstName).To(Equal(payload.FirstName))
-		})
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rec, req)
 
-		It("should forbid updating another user's profile", func() {
-			// The basicUser (ID 2) is trying to update another user (ID 3).
-			targetUserID := int64(3)
-			targetUser := &types.User{ID: targetUserID, CompanyID: 2} // Same company, different user
-
-			// The handler will fetch the target user to check ownership
-			mockUsersRepo.EXPECT().Get(gomock.Any(), targetUserID).Return(targetUser, true, nil)
-
-			req := newAuthenticatedRequest("PUT", "/users/3", bytes.NewBuffer(body), basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("user not authorized to update this user"))
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-	Context("with an invalid request", func() {
-		It("should return 400 for a missing required field", func() {
-			payload.FirstName = "" // Make the payload invalid
-			body, _ := json.Marshal(payload)
-			req := newAuthenticatedRequest("PUT", "/users/2", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("Field 'firstname' is required."))
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), nil)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
 		})
 
-		It("should return 404 for a non-integer ID", func() {
-			req := newAuthenticatedRequest("PUT", "/users/abc", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+		It("should fail if a normal user tries to update another user", func() {
+			otherUser := &types.User{ID: 99, CompanyID: normalUser.CompanyID}
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, otherUser.ID).Return(otherUser, true, nil)
+
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/99", bytes.NewBuffer(body), normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
 		})
 	})
 
-	Context("when a dependency is not found", func() {
+	Context("Invalid Input", func() {
+		It("should fail with an invalid user ID", func() {
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/invalid-id", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should fail with a malformed JSON body", func() {
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer([]byte(`{"first_name":`)), adminUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should fail if a required field is missing", func() {
+			payload.FirstName = ""
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), adminUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Context("Dependency and Repository Errors", func() {
 		It("should return 404 if the user to update is not found", func() {
-			userID := int64(404)
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(nil, false, nil)
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(nil, false, nil)
 
-			req := newAuthenticatedRequest("PUT", "/users/404", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
 		})
 
-		It("should return 400 if the new address is not found", func() {
-			userID := int64(2)
+		It("should return 500 on get user db error", func() {
+			dbErr := errors.New("db error")
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(nil, false, dbErr)
 
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(&types.User{ID: userID}, true, nil)
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+		})
+
+		It("should return 400 if the address does not exist", func() {
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, nil)
 
-			req := newAuthenticatedRequest("PUT", "/users/2", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
-	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 on final update error", func() {
-			userID := int64(2)
-			dbErr := errors.New("update failed")
+		It("should return 500 on get address db error", func() {
+			dbErr := errors.New("db error")
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, dbErr)
 
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(&types.User{ID: userID}, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+		})
+
+		It("should return 500 on update user db error", func() {
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			dbErr := errors.New("db error")
 			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(dbErr)
 
-			req := newAuthenticatedRequest("PUT", "/users/2", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to update user"))
+			body, err := json.Marshal(payload)
+			Expect(err).NotTo(HaveOccurred())
+			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
-
 })

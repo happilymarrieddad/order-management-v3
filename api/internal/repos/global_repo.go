@@ -6,7 +6,7 @@ import (
 	"xorm.io/xorm"
 )
 
-//go:generate mockgen -source=./globalRepo.go -destination=./mocks/global_repo.go -package=mock_repos GlobalRepo
+//go:generate mockgen -source=./global_repo.go -destination=./mocks/global_repo.go -package=mock_repos GlobalRepo
 type GlobalRepo interface {
 	Addresses() AddressesRepo
 	Users() UsersRepo
@@ -14,6 +14,7 @@ type GlobalRepo interface {
 	Locations() LocationsRepo
 	CommodityAttributes() CommodityAttributesRepo
 	Commodities() CommoditiesRepo
+	CompanyAttributes() CompanyAttributesRepo
 }
 
 func NewGlobalRepo(db *xorm.Engine, gclient GoogleAPIClient) GlobalRepo {
@@ -83,4 +84,8 @@ func (gr *globalRepo) CommodityAttributes() CommodityAttributesRepo {
 
 func (gr *globalRepo) Commodities() CommoditiesRepo {
 	return gr.factory("Commodities", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCommoditiesRepo(db) }).(CommoditiesRepo)
+}
+
+func (gr *globalRepo) CompanyAttributes() CompanyAttributesRepo {
+	return gr.factory("CompanyAttributes", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCompanyAttributesRepo(db) }).(CompanyAttributesRepo)
 }

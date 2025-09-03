@@ -23,22 +23,16 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the authenticated user to check for permissions
-	authUserID, found := middleware.GetUserIDFromContext(r.Context())
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	authUser, found := middleware.GetAuthUserFromContext(r.Context())
 	if !found { // Should be caught by middleware, but good practice to check
 		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	authUser, found, err := repo.Users().Get(r.Context(), authUserID)
-	if err != nil || !found {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to get authenticated user")
-		return
-	}
-
 	// Admins can create users in any company.
 	// Non-admins can only create users in their own company.
-	if !authUser.Roles.HasRole(types.RoleAdmin) {
+	if !authUser.HasRole(types.RoleAdmin) {
 		if authUser.CompanyID != payload.CompanyID {
 			middleware.WriteError(w, http.StatusForbidden, "user not authorized to create users for this company")
 			return
@@ -46,7 +40,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user with that email already exists
-	_, found, err = repo.Users().GetByEmail(r.Context(), payload.Email)
+	_, found, err := repo.Users().GetByEmail(r.Context(), payload.Email)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to check for existing user")
 		return

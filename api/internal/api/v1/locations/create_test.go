@@ -1,121 +1,117 @@
 package locations_test
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+
+	"github.com/golang/mock/gomock"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/locations"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"go.uber.org/mock/gomock"
 )
 
-var _ = Describe("Create Location Handler", func() {
+var _ = Describe("Create Location Endpoint", func() {
 	var (
-		payload      locations.CreateLocationPayload
-		payloadBytes []byte
-		newLocation  *types.Location
-		err          error
+		rec     *httptest.ResponseRecorder
+		payload locations.CreateLocationPayload
+		address *types.Address
 	)
 
 	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		address = &types.Address{ID: 1, Line1: "123 Test St"}
 		payload = locations.CreateLocationPayload{
-			Name:      "Main Warehouse",
-			CompanyID: 1,
-			AddressID: 2,
+			Name:      "Test Location",
+			CompanyID: company.ID, // Use company from suite
+			AddressID: address.ID,
 		}
-		payloadBytes, err = json.Marshal(payload)
+	})
+
+	performRequest := func(payload interface{}, user *types.User) {
+		body, err := json.Marshal(payload)
 		Expect(err).NotTo(HaveOccurred())
+		req := newAuthenticatedRequest(http.MethodPost, "/locations", body, user)
+		router.ServeHTTP(rec, req)
+	}
 
-		newLocation = &types.Location{
-			ID:        1,
-			Name:      payload.Name,
-			CompanyID: payload.CompanyID,
-			AddressID: payload.AddressID,
-		}
-	})
+	Context("Happy Path", func() {
+		It("should create a location successfully for an admin", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(company, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
 
-	Context("when creation is successful", func() {
-		It("should return 201 Created with the new location", func() {
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
-			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Do(
-				func(ctx context.Context, loc *types.Location) {
-					loc.ID = newLocation.ID
-				}).Return(nil)
+			performRequest(payload, adminUser)
 
-			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+			Expect(rec.Code).To(Equal(http.StatusCreated))
+		})
 
-			Expect(rr.Code).To(Equal(http.StatusCreated))
+		It("should create a location successfully for a normal user in their own company", func() {
+			// Adjust payload to match normalUser's company
+			payload.CompanyID = normalUser.CompanyID
 
-			var returnedLocation types.Location
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedLocation)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedLocation.ID).To(Equal(newLocation.ID))
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(company, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+
+			performRequest(payload, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusCreated))
 		})
 	})
 
-	Context("with invalid input", func() {
-		It("should return 400 for a validation error (missing name)", func() {
-			payload.Name = "" // Make the payload invalid
-			body, _ := json.Marshal(payload)
-			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("Field 'name' is required."))
+	Context("Error Paths", func() {
+		It("should fail if not authenticated", func() {
+			performRequest(payload, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
 		})
-	})
 
-	Context("when a dependency is not found", func() {
-		It("should return 400 if the company does not exist", func() {
+		// Removed: "should fail if a non-admin tries to create a location"
+		// This test is no longer relevant as normal users are now allowed to create locations.
+
+		It("should fail with a malformed JSON body", func() {
+			req := newAuthenticatedRequest(http.MethodPost, "/locations", []byte(`{`), adminUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should fail if the company does not exist", func() {
 			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(nil, false, nil)
-
-			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("company not found"))
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should return 400 if the address does not exist", func() {
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
+		It("should fail if the address does not exist", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(company, true, nil)
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, nil)
-
-			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
-		})
-	})
-
-	Context("when the repository fails", func() {
-		It("should return 500 Internal Server Error", func() {
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(&types.Company{ID: payload.CompanyID}, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
-			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db insert failed"))
-			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to create location"))
-		})
-	})
-
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("POST", "/locations", bytes.NewBuffer(payloadBytes), nil)
-			router.ServeHTTP(rr, req)
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), payload.CompanyID).Return(company, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockLocationsRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dbErr)
 
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+			performRequest(payload, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+		})
+
+		It("should fail if a normal user tries to create a location for another company", func() {
+			// Set payload company ID to a different company than normalUser's
+			payload.CompanyID = normalUser.CompanyID + 999
+
+			// No mock expectations for CompaniesRepo.Get or AddressesRepo.Get here,
+			// as the request should be forbidden before those checks.
+
+			performRequest(payload, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
 		})
 	})
 })

@@ -1,114 +1,233 @@
 package users_test
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Find Users Handler", func() {
-	Context("when users exist", func() {
-		It("should return a list of users with default pagination", func() {
-			foundUsers := []*types.User{
-				{ID: 1, Email: "a@b.com"},
-				{ID: 2, Email: "c@d.com"},
-			}
-			expectedOpts := &repos.UserFindOpts{Limit: 10, Offset: 0}
-			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(foundUsers, int64(2), nil)
+var _ = Describe("Find Users Endpoint", func() {
+	var (
+		rec *httptest.ResponseRecorder
+	)
 
-			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusOK))
-
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(2)))
-		})
-
-		It("should return a list of users with custom pagination", func() {
-			foundUsers := []*types.User{{ID: 3, Email: "e@f.com"}}
-			opts := &repos.UserFindOpts{Limit: 5, Offset: 5}
-			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(opts)).Return(foundUsers, int64(1), nil)
-
-			body, _ := json.Marshal(opts)
-			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusOK))
-
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(1)))
-		})
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
 	})
 
-	Context("when no users exist", func() {
-		It("should return an empty list", func() {
-			opts := &repos.UserFindOpts{Emails: []string{"notfound@example.com"}}
-			body, _ := json.Marshal(opts)
+	performRequest := func(queryParams url.Values, user *types.User) {
+		req := newAuthenticatedRequest(http.MethodGet, "/users/find?"+queryParams.Encode(), nil, user)
+		router.ServeHTTP(rec, req)
+	}
 
-			// The handler should still apply default limits even for an empty result.
-			expectedOpts := &repos.UserFindOpts{Emails: []string{"notfound@example.com"}, Limit: 10}
+	Context("Happy Path", func() {
+		It("should find users successfully for an admin", func() {
+			expectedUsers := []*types.User{
+				{ID: 1, CompanyID: company.ID, Email: "user1@example.com"},
+				{ID: 2, CompanyID: company.ID, Email: "user2@example.com"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(expectedUsers, int64(len(expectedUsers)), nil)
+
+			performRequest(url.Values{}, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.User]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", len(expectedUsers)))
+			Expect(result.Data).To(HaveLen(len(expectedUsers)))
+			Expect(result.Data[0].Email).To(Equal(expectedUsers[0].Email))
+		})
+
+		It("should find users successfully for a normal user (limited to their company)", func() {
+			expectedUsers := []*types.User{
+				{ID: 1, CompanyID: normalUser.CompanyID, Email: "user1@example.com"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.CompanyID).To(Equal(normalUser.CompanyID))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
+
+			performRequest(url.Values{}, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.User]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", len(expectedUsers)))
+			Expect(result.Data).To(HaveLen(len(expectedUsers)))
+		})
+
+		It("should apply limit and offset", func() {
+			expectedUsers := []*types.User{
+				{ID: 1, CompanyID: company.ID, Email: "filtered@example.com"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.Emails).To(ContainElement("filtered@example.com"))
+				Expect(opts.Limit).To(Equal(5))
+				Expect(opts.Offset).To(Equal(10))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
+
+			params := url.Values{}
+			params.Add("email", "filtered@example.com")
+			params.Add("limit", "5")
+			params.Add("offset", "10")
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should filter by company_id for admin users", func() {
+			otherCompanyID := int64(99)
+			expectedUsers := []*types.User{
+				{ID: 3, CompanyID: otherCompanyID, Email: "user3@example.com"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.CompanyID).To(Equal(otherCompanyID))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
+
+			params := url.Values{}
+			params.Add("company_id", strconv.FormatInt(otherCompanyID, 10))
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should filter by multiple IDs", func() {
+			ids := []int64{1, 2}
+			expectedUsers := []*types.User{
+				{ID: 1, CompanyID: company.ID, Email: "user1@example.com"},
+				{ID: 2, CompanyID: company.ID, Email: "user2@example.com"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.IDs).To(ConsistOf(ids))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
+
+			params := url.Values{}
+			for _, id := range ids {
+				params.Add("id", strconv.FormatInt(id, 10))
+			}
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should filter by multiple emails", func() {
+			emails := []string{"user1@example.com", "user2@example.com"}
+			expectedUsers := []*types.User{
+				{ID: 1, CompanyID: company.ID, Email: "user1@example.com"},
+				{ID: 2, CompanyID: company.ID, Email: "user2@example.com"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.Emails).To(ConsistOf(emails))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
+
+			params := url.Values{}
+			for _, email := range emails {
+				params.Add("email", email)
+			}
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should filter by multiple first names", func() {
+			firstNames := []string{"John", "Jane"}
+			expectedUsers := []*types.User{
+				{ID: 1, CompanyID: company.ID, FirstName: "John"},
+				{ID: 2, CompanyID: company.ID, FirstName: "Jane"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.FirstNames).To(ConsistOf(firstNames))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
+
+			params := url.Values{}
+			for _, name := range firstNames {
+				params.Add("first_name", name)
+			}
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should filter by multiple last names", func() {
+			lastNames := []string{"Doe", "Smith"}
+			expectedUsers := []*types.User{
+				{ID: 1, CompanyID: company.ID, LastName: "Doe"},
+				{ID: 2, CompanyID: company.ID, LastName: "Smith"},
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.LastNames).To(ConsistOf(lastNames))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
+
+			params := url.Values{}
+			for _, name := range lastNames {
+				params.Add("last_name", name)
+			}
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should handle invalid limit parameter gracefully", func() {
+			// Expect default limit to be used
+			expectedOpts := &repos.UserFindOpts{
+				Limit:  10,
+				Offset: 0,
+			}
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.User{}, int64(0), nil)
 
-			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
+			params := url.Values{}
+			params.Add("limit", "invalid")
+			performRequest(params, adminUser)
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
 
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(0)))
-			Expect(result.Data).To(BeEmpty())
+		It("should handle invalid offset parameter gracefully", func() {
+			// Expect default offset to be used
+			expectedOpts := &repos.UserFindOpts{
+				Limit:  10,
+				Offset: 0,
+			}
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.User{}, int64(0), nil)
+
+			params := url.Values{}
+			params.Add("offset", "invalid")
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-	Context("with an invalid request", func() {
-		It("should return 400 for a malformed JSON body", func() {
-			body := []byte(`{"emails": ["bad@json.com"]`) // Malformed JSON
-			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+	Context("Error Paths", func() {
+		It("should fail if not authenticated", func() {
+			performRequest(url.Values{}, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
 		})
-	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 if the repository fails", func() {
-			dbErr := errors.New("find database error")
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
 
-			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
+			performRequest(url.Values{}, adminUser)
 
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-		})
-	})
-
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
-		})
-
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("POST", "/users/find", bytes.NewBufferString(`{}`), nil)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

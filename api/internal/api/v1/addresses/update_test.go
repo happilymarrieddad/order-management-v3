@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	"github.com/happilymarrieddad/order-management-v3/api/utils"
@@ -47,8 +50,10 @@ var _ = Describe("Update Address Handler", func() {
 			// The repo's Update method is responsible for geocoding and persistence.
 			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
@@ -65,22 +70,28 @@ var _ = Describe("Update Address Handler", func() {
 		It("should return 404 Not Found", func() {
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
 
-			req := newAuthenticatedRequest("PUT", "/addresses/999", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/999", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
 	Context("with invalid input", func() {
 		It("should return 400 for a malformed JSON body", func() {
-			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBufferString(`{]`), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBufferString(`{]`), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 		})
 
 		It("should return 404 for a non-integer ID", func() {
-			req := newAuthenticatedRequest("PUT", "/addresses/abc", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/abc", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusNotFound))
 		})
 	})
@@ -90,8 +101,10 @@ var _ = Describe("Update Address Handler", func() {
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingAddr, true, nil)
 			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db update failed"))
 
-			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
 			Expect(rr.Body.String()).To(ContainSubstring("unable to update address"))
@@ -100,16 +113,20 @@ var _ = Describe("Update Address Handler", func() {
 
 	Context("when the user is not an admin", func() {
 		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), basicUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusForbidden))
 			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
 		})
 
 		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("PUT", "/addresses/1", bytes.NewBuffer(payloadBytes), nil)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), nil, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})

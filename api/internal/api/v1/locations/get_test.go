@@ -4,60 +4,91 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 
-	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Get Location Handler", func() {
-	Context("when the location exists", func() {
-		It("should return the location for an authenticated user", func() {
-			location := &types.Location{ID: 1, Name: "Test Location"}
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(location, true, nil)
+var _ = Describe("Get Location Endpoint", func() {
+	var (
+		rec      *httptest.ResponseRecorder
+		location *types.Location
+	)
 
-			req := newAuthenticatedRequest("GET", "/locations/1", nil, basicUser)
-			router.ServeHTTP(rr, req)
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		location = &types.Location{ID: 1, Name: "Test Location", CompanyID: company.ID, AddressID: 1}
+	})
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+	performRequest := func(locationID int64, user *types.User) {
+		req := newAuthenticatedRequest(http.MethodGet, "/locations/"+strconv.FormatInt(locationID, 10), nil, user)
+		router.ServeHTTP(rec, req)
+	}
+
+	Context("Happy Path", func() {
+		It("should get a location successfully for a non-admin in their own company", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, location.ID).Return(location, true, nil)
+
+			performRequest(location.ID, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
 
 			var returnedLocation types.Location
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedLocation)
+			err := json.NewDecoder(rec.Body).Decode(&returnedLocation)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(returnedLocation.ID).To(Equal(location.ID))
 		})
-	})
 
-	Context("when the location does not exist", func() {
-		It("should return 404 Not Found", func() {
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
+		It("should get a location successfully for an admin for any company", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(0), location.ID).Return(location, true, nil)
 
-			req := newAuthenticatedRequest("GET", "/locations/999", nil, basicUser)
-			router.ServeHTTP(rr, req)
+			performRequest(location.ID, adminUser)
 
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-	Context("when the ID is invalid", func() {
-		It("should return 404 Not Found from the router", func() {
-			req := newAuthenticatedRequest("GET", "/locations/abc", nil, basicUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+	Context("Error Paths", func() {
+		It("should fail if not authenticated", func() {
+			performRequest(location.ID, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
 		})
-	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			dbErr := errors.New("db went boom")
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(nil, false, dbErr)
+		It("should return 404 if a non-admin tries to get a location for another company", func() {
+			otherLocation := &types.Location{ID: 2, Name: "Other Location", CompanyID: 99}
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, otherLocation.ID).Return(nil, false, nil)
 
-			req := newAuthenticatedRequest("GET", "/locations/1", nil, basicUser)
-			router.ServeHTTP(rr, req)
+			performRequest(otherLocation.ID, normalUser)
 
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to get location"))
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should fail with an invalid ID", func() {
+			req := newAuthenticatedRequest(http.MethodGet, "/locations/invalid-id", nil, normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusNotFound)) // Gorilla Mux returns 404 for non-matching routes
+		})
+
+		It("should return 404 if the location is not found", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, location.ID).Return(nil, false, nil)
+
+			performRequest(location.ID, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, location.ID).Return(nil, false, dbErr)
+
+			performRequest(location.ID, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

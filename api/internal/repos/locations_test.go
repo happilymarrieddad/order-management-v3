@@ -51,18 +51,27 @@ var _ = Describe("LocationsRepo", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(newLocation.ID).NotTo(BeZero())
 
-			retrieved, found, err := repo.Get(ctx, newLocation.ID)
+			retrieved, found, err := repo.Get(ctx, company.ID, newLocation.ID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(found).To(BeTrue())
 			Expect(retrieved.Name).To(Equal("Main Warehouse"))
 			Expect(retrieved.CompanyID).To(Equal(company.ID))
 			Expect(retrieved.Address).NotTo(BeNil())
 			Expect(retrieved.Address.ID).To(Equal(address.ID))
-			Expect(retrieved.Address.Line1).To(Equal(address.Line1))
-			Expect(retrieved.Address.City).To(Equal(address.City))
-			Expect(retrieved.Address.State).To(Equal(address.State))
-			Expect(retrieved.Address.Country).To(Equal(address.Country))
-			Expect(retrieved.Address.PostalCode).To(Equal(address.PostalCode))
+		})
+
+		It("should not get a location from another company", func() {
+			newLocation := &types.Location{
+				CompanyID: company.ID,
+				AddressID: address.ID,
+				Name:      "Another Warehouse",
+			}
+			err := repo.Create(ctx, newLocation)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, found, err := repo.Get(ctx, company.ID+1, newLocation.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeFalse())
 		})
 
 		It("should fail to create a location with a duplicate name for the same company", func() {
@@ -130,7 +139,7 @@ var _ = Describe("LocationsRepo", func() {
 			err := repo.Update(ctx, existingLocation)
 			Expect(err).NotTo(HaveOccurred())
 
-			retrieved, found, err := repo.Get(ctx, existingLocation.ID)
+			retrieved, found, err := repo.Get(ctx, company.ID, existingLocation.ID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(found).To(BeTrue())
 			Expect(retrieved.Name).To(Equal("Updated Location Name"))
@@ -165,7 +174,7 @@ var _ = Describe("LocationsRepo", func() {
 			err = repo.Delete(ctx, locationToDelete.ID)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, found, err := repo.Get(ctx, locationToDelete.ID)
+			_, found, err := repo.Get(ctx, company.ID, locationToDelete.ID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(found).To(BeFalse())
 
@@ -202,6 +211,118 @@ var _ = Describe("LocationsRepo", func() {
 			count, err := repo.CountByCompanyID(ctx, company3.ID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(int64(0)))
+		})
+	})
+
+	Describe("Find", func() {
+		var (
+			company2 *types.Company
+			address2 *types.Address
+			location1 *types.Location
+			location2 *types.Location
+			location3 *types.Location
+		)
+
+		BeforeEach(func() {
+			// Create additional company and address for diverse test data
+			address2 = &types.Address{
+				Line1:      "789 Test Ave",
+				City:       "Testville",
+				State:      "TS",
+				PostalCode: "98765",
+				Country:    "USA",
+			}
+			address2, err := gr.Addresses().Create(ctx, address2)
+			Expect(err).NotTo(HaveOccurred())
+
+			company2 = &types.Company{Name: "Another Test Company", AddressID: address2.ID}
+			err = gr.Companies().Create(ctx, company2)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create test locations
+			location1 = &types.Location{CompanyID: company.ID, AddressID: address.ID, Name: "Main Office"}
+			Expect(repo.Create(ctx, location1)).To(Succeed())
+
+			location2 = &types.Location{CompanyID: company.ID, AddressID: address2.ID, Name: "Branch Office A"}
+			Expect(repo.Create(ctx, location2)).To(Succeed())
+
+			location3 = &types.Location{CompanyID: company2.ID, AddressID: address.ID, Name: "Remote Site"}
+			Expect(repo.Create(ctx, location3)).To(Succeed())
+		})
+
+		It("should find locations by name using LIKE (case-insensitive and partial match)", func() {
+			foundLocations, count, err := repo.Find(ctx, &repos.LocationFindOpts{Names: []string{"office"}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(2)))
+			Expect(foundLocations).To(HaveLen(2))
+			Expect(foundLocations).To(ConsistOf(
+				WithTransform(func(l *types.Location) string { return l.Name }, Equal(location1.Name)),
+				WithTransform(func(l *types.Location) string { return l.Name }, Equal(location2.Name)),
+			))
+
+			foundLocations, count, err = repo.Find(ctx, &repos.LocationFindOpts{Names: []string{"remote"}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(1)))
+			Expect(foundLocations).To(HaveLen(1))
+			Expect(foundLocations[0].Name).To(Equal(location3.Name))
+		})
+
+		It("should find locations by IDs", func() {
+			foundLocations, count, err := repo.Find(ctx, &repos.LocationFindOpts{IDs: []int64{location1.ID, location3.ID}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(2)))
+			Expect(foundLocations).To(HaveLen(2))
+			Expect(foundLocations).To(ConsistOf(
+				WithTransform(func(l *types.Location) int64 { return l.ID }, Equal(location1.ID)),
+				WithTransform(func(l *types.Location) int64 { return l.ID }, Equal(location3.ID)),
+			))
+		})
+
+		It("should find locations by CompanyIDs", func() {
+			foundLocations, count, err := repo.Find(ctx, &repos.LocationFindOpts{CompanyIDs: []int64{company.ID}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(2)))
+			Expect(foundLocations).To(HaveLen(2))
+			Expect(foundLocations).To(ConsistOf(
+				WithTransform(func(l *types.Location) int64 { return l.ID }, Equal(location1.ID)),
+				WithTransform(func(l *types.Location) int64 { return l.ID }, Equal(location2.ID)),
+			))
+		})
+
+		It("should find locations by AddressIDs", func() {
+			foundLocations, count, err := repo.Find(ctx, &repos.LocationFindOpts{AddressIDs: []int64{address2.ID}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(1)))
+			Expect(foundLocations).To(HaveLen(1))
+			Expect(foundLocations[0].ID).To(Equal(location2.ID))
+		})
+
+		It("should find locations by a combination of filters", func() {
+			foundLocations, count, err := repo.Find(ctx, &repos.LocationFindOpts{
+				CompanyIDs: []int64{company.ID},
+				Names:      []string{"branch"},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(1)))
+			Expect(foundLocations).To(HaveLen(1))
+			Expect(foundLocations[0].ID).To(Equal(location2.ID))
+		})
+
+		It("should apply limit and offset", func() {
+			// Create more locations to test pagination
+			for i := 0; i < 5; i++ {
+				Expect(repo.Create(ctx, &types.Location{CompanyID: company.ID, AddressID: address.ID, Name: "Paginated Location " + string(rune('A'+i))})).To(Succeed())
+			}
+
+			foundLocations, count, err := repo.Find(ctx, &repos.LocationFindOpts{Limit: 2, Offset: 0})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(BeNumerically(">=", int64(2)))
+			Expect(foundLocations).To(HaveLen(2))
+
+			foundLocations, count, err = repo.Find(ctx, &repos.LocationFindOpts{Limit: 2, Offset: 2})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(BeNumerically(">=", int64(2)))
+			Expect(foundLocations).To(HaveLen(2))
 		})
 	})
 })

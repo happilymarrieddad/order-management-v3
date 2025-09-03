@@ -19,7 +19,14 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, found, err := repo.Users().Get(r.Context(), id)
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	authUser, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	user, found, err := repo.Users().Get(r.Context(), authUser.CompanyID, id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get user")
 		return

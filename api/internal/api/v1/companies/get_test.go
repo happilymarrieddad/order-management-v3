@@ -4,60 +4,86 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Get Company Handler", func() {
-	Context("when the company exists", func() {
-		It("should return the company for an authenticated user", func() {
-			company := &types.Company{ID: 1, Name: "Test Co"}
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(company, true, nil)
+var _ = Describe("Get Company Endpoint", func() {
+	var (
+		rec *httptest.ResponseRecorder
+	)
 
-			req := newAuthenticatedRequest("GET", "/companies/1", nil, basicUser)
-			router.ServeHTTP(rr, req)
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+	})
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+	performRequest := func(companyID string, user *types.User) {
+		var err error
+		rec, err = testutils.PerformRequest(router, http.MethodGet, "/companies/"+companyID, url.Values{}, nil, user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
 
-			var returnedCompany types.Company
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedCompany)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedCompany.ID).To(Equal(company.ID))
+	Context("Happy Path", func() {
+		It("should get a company successfully for an admin", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), company.ID).Return(company, true, nil)
+
+			performRequest("1", adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.Company
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.ID).To(Equal(company.ID))
+		})
+
+		It("should get a company successfully for a normal user in their own company", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID).Return(company, true, nil)
+
+			performRequest("1", normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-	Context("when the company does not exist", func() {
-		It("should return 404 Not Found", func() {
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest("1", nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
 
-			req := newAuthenticatedRequest("GET", "/companies/999", nil, basicUser)
-			router.ServeHTTP(rr, req)
+		It("should fail if a normal user tries to get another company", func() {
+			// No mock expectation for CompaniesRepo.Get here, as the request should be forbidden before that check.
+			performRequest("99", normalUser)
 
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
 		})
 	})
 
-	Context("when the ID is invalid", func() {
-		It("should return 404 Not Found from the router", func() {
-			req := newAuthenticatedRequest("GET", "/companies/abc", nil, basicUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+	Context("Invalid Input", func() {
+		It("should fail with an invalid company ID", func() {
+			performRequest("invalid-id", adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			dbErr := errors.New("db went boom")
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(nil, false, dbErr)
+	Context("Repository Errors", func() {
+		It("should return 404 if the company is not found", func() {
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), company.ID).Return(nil, false, nil)
+			performRequest("1", adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
 
-			req := newAuthenticatedRequest("GET", "/companies/1", nil, basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to get company"))
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
+			mockCompaniesRepo.EXPECT().Get(gomock.Any(), company.ID).Return(nil, false, dbErr)
+			performRequest("1", adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

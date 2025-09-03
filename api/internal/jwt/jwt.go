@@ -2,15 +2,15 @@ package jwtpkg
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
 // For production, this should be loaded from a secure configuration management system or environment variables.
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+var jwtSecret = []byte(utils.GetEnv("JWT_SECRET", "a-default-secret-for-dev-only"))
 
 // CustomClaims includes custom data for the JWT, embedding standard claims.
 type CustomClaims struct {

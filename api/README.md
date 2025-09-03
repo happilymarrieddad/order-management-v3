@@ -8,7 +8,7 @@ This repository contains a RESTful API for a complex order management system, bu
 - **Tech Stack**: Built with Go, using Gorilla/Mux for routing and PostgreSQL for data storage.
 - **Database Layer**: Interacts with the database using the XORM library.
 - **Migrations**: Database schema is managed with `goose` migrations.
-- **Testing**: Comprehensive integration and repository test suites using Ginkgo & Gomega.
+- **Testing**: Comprehensive integration and repository test suites using Ginkgo & Gomega, including robust role-based authentication testing.
 - **Mocks**: Automatically generates mocks for interfaces using `go:generate` and GoMock.
 - **Authentication**: Secures endpoints using JWT-based authentication.
 - **Geocoding**: Integrates with the Google Maps API for address geocoding.
@@ -38,6 +38,7 @@ The API revolves around a few core concepts that define how products are categor
 *   **`User`**: Represents an individual user of the system, associated with a `Company` and an `Address`. Users have roles that define their permissions.
 *   **`Company`**: Represents an organization within the system, associated with an `Address`. Companies own products, locations, and users.
 *   **`Address`**: A reusable entity for storing physical addresses, used by `Users`, `Companies`, and `Locations`.
+*   **`CompanyAttribute`**: A link between a `Company` and a `CommodityAttribute`, allowing a company to specify which attributes are relevant to its products. It features a `position` field that auto-increments per company, managed by a database trigger.
 *   **`Location`**: Represents a specific physical location (e.g., a warehouse, office) belonging to a `Company`, and linked to an `Address`.
 
 *   **`Commodity`**: This is the most general classification. It represents a fundamental good, like "Potatoes" or "Apples". It has a `CommodityType`, such as "Produce".
@@ -64,6 +65,19 @@ The API revolves around a few core concepts that define how products are categor
     *   **Value 2**: Links the `Product` to the "Color" `CommodityAttribute` with the value "Green".
 
 This structure allows for a flexible and detailed product catalog where general commodities can be customized with specific attributes for different products sold by different companies.
+
+## Security & Authorization
+
+The API employs a multi-layered security model to protect endpoints and ensure data isolation between tenants.
+
+*   **JWT Authentication**: All endpoints under `/api` are protected and require a valid JSON Web Token (JWT) to be passed in the `X-App-Token` header. The `/login` endpoint is used to obtain this token.
+
+*   **Role-Based Access Control (RBAC)**: The system defines two primary roles:
+    *   **`User`**: Standard users with limited permissions.
+    *   **`Admin`**: Superusers who can perform administrative tasks.
+    Many endpoints (like creating companies or deleting resources) are restricted to admins only.
+
+*   **Ownership-Based Access (Multi-tenancy)**: This is the core of the security model. A user's actions are scoped to their own `Company`. For example, a standard user can only create new users for their own company and can only update their own user profile. This prevents users from one company from viewing or modifying the data of another. While admins have broader permissions, they are generally not exempt from these ownership checks and can only operate within their own company's data.
 
 ## Prerequisites
 

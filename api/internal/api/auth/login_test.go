@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,8 +8,6 @@ import (
 	"net/http/httptest"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/auth"
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
-	mock_repos "github.com/happilymarrieddad/order-management-v3/api/internal/repos/mocks"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,33 +17,12 @@ import (
 
 var _ = Describe("Login Handler", func() {
 	var (
-		ctrl           *gomock.Controller
-		mockGlobalRepo *mock_repos.MockGlobalRepo
-		mockUsersRepo  *mock_repos.MockUsersRepo
 		rr             *httptest.ResponseRecorder
 	)
 
 	BeforeEach(func() {
-		ctrl = gomock.NewController(GinkgoT())
-		mockGlobalRepo = mock_repos.NewMockGlobalRepo(ctrl)
-		mockUsersRepo = mock_repos.NewMockUsersRepo(ctrl)
 		rr = httptest.NewRecorder()
-
-		// Set up the mock chain: globalRepo.Users() -> mockUsersRepo
-		mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo).AnyTimes()
 	})
-
-	AfterEach(func() {
-		ctrl.Finish()
-	})
-
-	// Helper function to create a request with the repo in its context
-	createRequestWithRepo := func(body []byte) *http.Request {
-		req := httptest.NewRequest("POST", "/login", bytes.NewBuffer(body))
-		// This key must match the one used in the middleware to inject the repo
-		ctxWithRepo := context.WithValue(req.Context(), middleware.RepoKey, mockGlobalRepo)
-		return req.WithContext(ctxWithRepo)
-	}
 
 	Context("when the request is valid", func() {
 		It("should return a JWT token on successful authentication", func() {
@@ -65,7 +41,7 @@ var _ = Describe("Login Handler", func() {
 
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), "test@example.com").Return(user, true, nil)
 
-			req := createRequestWithRepo(body)
+			req := newAuthenticatedRequest(http.MethodPost, "/login", body, nil)
 			auth.Login(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
@@ -85,7 +61,7 @@ var _ = Describe("Login Handler", func() {
 
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), "notfound@example.com").Return(nil, false, nil)
 
-			req := createRequestWithRepo(body)
+			req := newAuthenticatedRequest(http.MethodPost, "/login", body, nil)
 			auth.Login(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
@@ -104,7 +80,7 @@ var _ = Describe("Login Handler", func() {
 
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), "test@example.com").Return(user, true, nil)
 
-			req := createRequestWithRepo(body)
+			req := newAuthenticatedRequest(http.MethodPost, "/login", body, nil)
 			auth.Login(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
@@ -119,7 +95,7 @@ var _ = Describe("Login Handler", func() {
 			dbErr := errors.New("database connection lost")
 			mockUsersRepo.EXPECT().GetByEmail(gomock.Any(), "test@example.com").Return(nil, false, dbErr)
 
-			req := createRequestWithRepo(body)
+			req := newAuthenticatedRequest(http.MethodPost, "/login", body, nil)
 			auth.Login(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
@@ -129,7 +105,7 @@ var _ = Describe("Login Handler", func() {
 	Context("when the request body is invalid", func() {
 		It("should return 400 Bad Request for malformed JSON", func() {
 			body := []byte(`{"email": "test@example.com",`) // Malformed JSON
-			req := createRequestWithRepo(body)
+			req := newAuthenticatedRequest(http.MethodPost, "/login", body, nil)
 			auth.Login(rr, req)
 
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))

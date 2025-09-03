@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
 )
 
 var _ = Describe("Find Addresses Handler", func() {
@@ -22,21 +26,19 @@ var _ = Describe("Find Addresses Handler", func() {
 			}
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.AddressFindOpts{Limit: 10, Offset: 0})).Return(foundAddresses, int64(2), nil)
 
-			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var err error
+			rr, err = testutils.PerformRequest(router, http.MethodPost, "/addresses/find", url.Values{}, bytes.NewBufferString(`{}`), adminUser, mockGlobalRepo)
+			Expect(err).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
+			var result types.FindResult[[]*types.Address] // Changed to generic FindResult
+			err = json.NewDecoder(rr.Body).Decode(&result)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Total).To(Equal(int64(2)))
-
-			dataBytes, _ := json.Marshal(result.Data)
-			var returnedAddresses []types.Address
-			json.Unmarshal(dataBytes, &returnedAddresses)
-			Expect(returnedAddresses).To(HaveLen(2))
-			Expect(returnedAddresses[0].Line1).To(Equal("123 A St"))
+			Expect(result.Data).To(HaveLen(2))
+			Expect(result.Data[0].Line1).To(Equal("123 A St"))
 		})
 
 		It("should return a list of addresses with custom pagination", func() {
@@ -45,13 +47,15 @@ var _ = Describe("Find Addresses Handler", func() {
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(opts)).Return(foundAddresses, int64(1), nil)
 
 			body, _ := json.Marshal(opts)
-			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var err error
+			rr, err = testutils.PerformRequest(router, http.MethodPost, "/addresses/find", url.Values{}, bytes.NewBuffer(body), adminUser, mockGlobalRepo)
+			Expect(err).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
+			var result types.FindResult[[]*types.Address] // Changed to generic FindResult
+			err = json.NewDecoder(rr.Body).Decode(&result)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Total).To(Equal(int64(1)))
 		})
@@ -61,13 +65,15 @@ var _ = Describe("Find Addresses Handler", func() {
 		It("should return an empty list", func() {
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.AddressFindOpts{Limit: 10, Offset: 0})).Return([]*types.Address{}, int64(0), nil)
 
-			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var err error
+			rr, err = testutils.PerformRequest(router, http.MethodPost, "/addresses/find", url.Values{}, bytes.NewBufferString(`{}`), adminUser, mockGlobalRepo)
+			Expect(err).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
+			var result types.FindResult[[]*types.Address] // Changed to generic FindResult
+			err = json.NewDecoder(rr.Body).Decode(&result)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Total).To(Equal(int64(0)))
 			Expect(result.Data).To(BeEmpty())
@@ -79,8 +85,10 @@ var _ = Describe("Find Addresses Handler", func() {
 			dbErr := errors.New("find query failed")
 			mockAddressesRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
 
-			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var err error
+			rr, err = testutils.PerformRequest(router, http.MethodPost, "/addresses/find", url.Values{}, bytes.NewBufferString(`{}`), adminUser, mockGlobalRepo)
+			Expect(err).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
 			Expect(rr.Body.String()).To(ContainSubstring("unable to find addresses"))
@@ -89,16 +97,20 @@ var _ = Describe("Find Addresses Handler", func() {
 
 	Context("when the user is not an admin", func() {
 		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), basicUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var err error
+			rr, err = testutils.PerformRequest(router, http.MethodPost, "/addresses/find", url.Values{}, bytes.NewBufferString(`{}`), basicUser, mockGlobalRepo)
+			Expect(err).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusForbidden))
 			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
 		})
 
 		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("POST", "/addresses/find", bytes.NewBufferString(`{}`), nil)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var err error
+			rr, err = testutils.PerformRequest(router, http.MethodPost, "/addresses/find", url.Values{}, bytes.NewBufferString(`{}`), nil, mockGlobalRepo)
+			Expect(err).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})

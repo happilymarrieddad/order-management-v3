@@ -4,7 +4,13 @@
   "description": "E2E tests for the Order Management API",
   "private": true,
   "scripts": {
-    "test:e2e": "node scripts/e2e.js"
+    "test:e2e": "ts-node scripts/e2e.ts"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.12.12"
   },
   "dependencies": {
     "axios": "^1.7.2"

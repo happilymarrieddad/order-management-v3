@@ -102,7 +102,7 @@ var _ = Describe("CommodityRepo Integration", func() {
 		})
 
 		It("should find commodities by name", func() {
-			opts := &repos.FindCommoditiesOpts{Name: "Apple"}
+			opts := &repos.FindCommoditiesOpts{Names: []string{"Apple"}}
 			commodities, count, err := commodityRepo.Find(ctx, opts)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(int64(1)))

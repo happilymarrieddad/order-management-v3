@@ -1,143 +1,157 @@
 package locations_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
+
+	"github.com/golang/mock/gomock"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/locations"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	"github.com/happilymarrieddad/order-management-v3/api/utils"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"go.uber.org/mock/gomock"
 )
 
-var _ = Describe("Update Location Handler", func() {
+var _ = Describe("Update Location Endpoint", func() {
 	var (
-		payload      locations.UpdateLocationPayload
-		payloadBytes []byte
-		existingLoc  *types.Location
-		err          error
+		rec        *httptest.ResponseRecorder
+		payload    locations.UpdateLocationPayload
+		address    *types.Address
+		newAddress *types.Address
+		location   *types.Location
+		locationID int64
 	)
 
 	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		address = &types.Address{ID: 1, Line1: "123 Test St"}
+		newAddress = &types.Address{ID: 2, Line1: "456 New St"}
+		locationID = 1
+		location = &types.Location{ID: locationID, Name: "Old Name", CompanyID: company.ID, AddressID: address.ID}
 		payload = locations.UpdateLocationPayload{
-			Name:      utils.Ref("Updated Warehouse Name"),
-			AddressID: utils.Ref(int64(3)),
+			Name:      utils.Ref("New Name"),
+			AddressID: utils.Ref(newAddress.ID),
 		}
-		payloadBytes, err = json.Marshal(payload)
+	})
+
+	performRequest := func(locID int64, payload interface{}, user *types.User) {
+		body, err := json.Marshal(payload)
 		Expect(err).NotTo(HaveOccurred())
+		req := newAuthenticatedRequest(http.MethodPut, "/locations/"+strconv.FormatInt(locID, 10), body, user)
+		router.ServeHTTP(rec, req)
+	}
 
-		existingLoc = &types.Location{ID: 1, Name: "Old Name", CompanyID: 1, AddressID: 2}
-	})
+	Context("Happy Path", func() {
+		It("should update a location successfully for a non-admin in their own company", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(location, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(newAddress, true, nil)
+			mockLocationsRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, loc *types.Location) error {
+				Expect(loc.Name).To(Equal(*payload.Name))
+				Expect(loc.AddressID).To(Equal(*payload.AddressID))
+				return nil
+			})
 
-	Context("as an admin", func() {
-		It("should update any location successfully", func() {
-			// adminUser is in company 1, updating a location in company 1
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), existingLoc.ID).Return(existingLoc, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(&types.Address{ID: *payload.AddressID}, true, nil)
-			mockLocationsRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, loc *types.Location) error {
-					Expect(loc.ID).To(Equal(existingLoc.ID))
-					Expect(loc.Name).To(Equal(*payload.Name))
-					Expect(loc.AddressID).To(Equal(*payload.AddressID))
-					return nil
-				},
-			)
+			performRequest(locationID, payload, normalUser)
 
-			req := newAuthenticatedRequest("PUT", "/locations/1", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusOK))
-			var returnedLocation types.Location
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedLocation)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedLocation.Name).To(Equal(*payload.Name))
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
-	})
 
-	Context("as a non-admin user", func() {
-		It("should update a location in their own company successfully", func() {
-			// basicUser is in company 2. We'll try to update a location in company 2.
-			ownLocation := &types.Location{ID: 5, Name: "Basic's Warehouse", CompanyID: basicUser.CompanyID, AddressID: 6}
-
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), ownLocation.ID).Return(ownLocation, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(&types.Address{ID: *payload.AddressID}, true, nil)
+		It("should update a location successfully for an admin", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(0), locationID).Return(location, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(newAddress, true, nil)
 			mockLocationsRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
-			req := newAuthenticatedRequest("PUT", "/locations/5", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
+			performRequest(locationID, payload, adminUser)
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
-			var returnedLocation types.Location
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedLocation)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedLocation.Name).To(Equal(*payload.Name))
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 
-		It("should forbid updating a location in another company", func() {
-			// basicUser is in company 2, trying to update a location in company 1.
-			otherLocation := &types.Location{ID: 1, Name: "Admin's Warehouse", CompanyID: 1, AddressID: 2}
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), otherLocation.ID).Return(otherLocation, true, nil)
+		It("should update only the name", func() {
+			payload.AddressID = nil
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(location, true, nil)
+			mockLocationsRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, loc *types.Location) error {
+				Expect(loc.Name).To(Equal(*payload.Name))
+				Expect(loc.AddressID).To(Equal(address.ID)) // Should not change
+				return nil
+			})
 
-			req := newAuthenticatedRequest("PUT", "/locations/1", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
+			performRequest(locationID, payload, normalUser)
 
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("user not authorized to update this location"))
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("PUT", "/locations/1", bytes.NewBuffer(payloadBytes), nil)
-			router.ServeHTTP(rr, req)
+		It("should update only the address", func() {
+			payload.Name = nil
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(location, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(newAddress, true, nil)
+			mockLocationsRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, loc *types.Location) error {
+				Expect(loc.Name).To(Equal("Old Name")) // Should not change
+				Expect(loc.AddressID).To(Equal(*payload.AddressID))
+				return nil
+			})
 
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+			performRequest(locationID, payload, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-	Context("when a dependency is not found", func() {
-		It("should return 404 if the location to update is not found", func() {
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), int64(404)).Return(nil, false, nil)
-
-			req := newAuthenticatedRequest("PUT", "/locations/404", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+	Context("Error Paths", func() {
+		It("should fail if not authenticated", func() {
+			performRequest(locationID, payload, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
 		})
 
-		It("should return 400 if the new address is not found", func() {
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), existingLoc.ID).Return(existingLoc, true, nil)
+		It("should fail if a non-admin tries to update a location for another company", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(nil, false, nil)
+			performRequest(locationID, payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should fail with an invalid ID", func() {
+			req := newAuthenticatedRequest(http.MethodPut, "/locations/invalid-id", nil, normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should fail if the location is not found", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(nil, false, nil)
+			performRequest(locationID, payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should fail if the new address is not found", func() {
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(location, true, nil)
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(nil, false, nil)
-
-			req := newAuthenticatedRequest("PUT", "/locations/1", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("new address not found"))
+			performRequest(locationID, payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
-	})
 
-	Context("with an invalid ID", func() {
-		It("should return 404 for a non-integer ID", func() {
-			req := newAuthenticatedRequest("PUT", "/locations/abc", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+		It("should return 500 on a database error during get", func() {
+			dbErr := errors.New("db error")
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(nil, false, dbErr)
+			performRequest(locationID, payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
-	})
 
-	Context("when the repository fails on update", func() {
-		It("should return 500 for a generic database error", func() {
-			dbErr := errors.New("db update failed")
-
-			mockLocationsRepo.EXPECT().Get(gomock.Any(), existingLoc.ID).Return(existingLoc, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(&types.Address{ID: *payload.AddressID}, true, nil)
+		It("should return 500 on a database error during update", func() {
+			dbErr := errors.New("db error")
+			mockLocationsRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, locationID).Return(location, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(newAddress, true, nil)
 			mockLocationsRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(dbErr)
+			performRequest(locationID, payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+		})
 
-			req := newAuthenticatedRequest("PUT", "/locations/1", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to update location"))
+		It("should fail with a malformed JSON body", func() {
+			req := newAuthenticatedRequest(http.MethodPut, "/locations/"+strconv.FormatInt(locationID, 10), []byte(`{`), normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 })

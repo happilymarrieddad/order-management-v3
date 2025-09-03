@@ -31,21 +31,15 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the authenticated user to check for permissions
-	authUserID, found := middleware.GetUserIDFromContext(r.Context())
-	if !found {
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	authUser, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
 		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	authUser, found, err := repo.Users().Get(r.Context(), authUserID)
-	if err != nil || !found {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to get authenticated user")
-		return
-	}
-
 	// Get the user to be updated
-	targetUser, found, err := repo.Users().Get(r.Context(), id)
+	targetUser, found, err := repo.Users().Get(r.Context(), authUser.CompanyID, id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get user")
 		return

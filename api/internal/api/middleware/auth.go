@@ -13,8 +13,8 @@ import (
 // collisions with keys from other packages.
 type contextKey string
 
-// UserIDKey is the key for the user ID in the context.
-const UserIDKey contextKey = "ctx:userID"
+// AuthUserKey is the key for the authenticated user object in the context.
+const AuthUserKey contextKey = "ctx:authUser"
 
 // AuthMiddleware checks for a valid JWT in the X-App-Token header.
 // If the token is missing or invalid, it returns a 401 Unauthorized error.
@@ -27,57 +27,45 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Validate the token using the dedicated jwt package.
-		// This function is expected to parse the token, validate its signature and claims,
-		// and return the user ID (from the 'sub' claim) on success.
 		claims, err := jwtpkg.ValidateToken(tokenString)
 		if err != nil {
 			WriteError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
 
-		// Add the userID to the request's context so it can be accessed by downstream handlers.
-		ctx := AddUserIDToContext(r.Context(), claims.UserID)
+		// OPTIMIZATION: Fetch the user object once and add it to the context.
+		repo := GetRepo(r.Context())
+		user, found, err := repo.Users().Get(r.Context(), claims.CompanyID, claims.UserID)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, "failed to retrieve user")
+			return
+		}
+		if !found {
+			WriteError(w, http.StatusUnauthorized, "user not found")
+			return
+		}
+
+		// Add the entire user object to the request's context.
+		ctx := context.WithValue(r.Context(), AuthUserKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// GetUserIDFromContext retrieves the user ID from the provided context.
-// It returns the user ID as an int64 and a boolean indicating if the ID was found.
-func GetUserIDFromContext(ctx context.Context) (int64, bool) {
-	userID, ok := ctx.Value(UserIDKey).(int64)
-	return userID, ok
-}
-
-// AddUserIDToContext adds the user ID to the provided context.
-func AddUserIDToContext(ctx context.Context, userID int64) context.Context {
-	return context.WithValue(ctx, UserIDKey, userID)
+// GetAuthUserFromContext retrieves the authenticated user object from the context.
+func GetAuthUserFromContext(ctx context.Context) (*types.User, bool) {
+	user, ok := ctx.Value(AuthUserKey).(*types.User)
+	return user, ok
 }
 
 // CheckAdminAndWriteError checks if the user in the context has the admin role.
-// If not, it writes a 403 Forbidden error to the response writer and returns true.
-// It also handles cases where the user ID is not found in the context or the user
-// is not found in the repository, returning 401 Unauthorized errors.
-// Returns true if an error was written, false otherwise.
 func CheckAdminAndWriteError(w http.ResponseWriter, r *http.Request) bool {
-	userID, found := GetUserIDFromContext(r.Context())
+	authUser, found := GetAuthUserFromContext(r.Context())
 	if !found {
 		WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return true
 	}
 
-	repo := GetRepo(r.Context())
-	user, found, err := repo.Users().Get(r.Context(), userID)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "failed to get user information")
-		return true
-	}
-	if !found {
-		WriteError(w, http.StatusUnauthorized, "user not found")
-		return true
-	}
-
-	if !user.Roles.HasRole(types.RoleAdmin) {
+	if !authUser.HasRole(types.RoleAdmin) {
 		WriteError(w, http.StatusForbidden, "forbidden")
 		return true
 	}

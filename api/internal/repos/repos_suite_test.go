@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"testing"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -31,12 +31,12 @@ var _ = BeforeSuite(func() {
 
 	// Best practice: use environment variables for database connection details
 	// with sensible defaults for local development (e.g., using Docker).
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "postgres")
-	dbPassword := getEnv("DB_PASSWORD", "postgres")
-	dbName := getEnv("DB_NAME", "postgres") + "-test" // Use a separate test database
-	dbSslMode := getEnv("DB_SSL_MODE", "disable")
+	dbHost := utils.GetEnv("DB_HOST", "localhost")
+	dbPort := utils.GetEnv("DB_PORT", "5432")
+	dbUser := utils.GetEnv("DB_USER", "postgres")
+	dbPassword := utils.GetEnv("DB_PASSWORD", "postgres")
+	dbName := utils.GetEnv("DB_NAME", "postgres") + "-test" // Use a separate test database
+	dbSslMode := utils.GetEnv("DB_SSL_MODE", "disable")
 
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		dbHost, dbPort, dbUser, dbPassword, dbName, dbSslMode)
@@ -84,14 +84,6 @@ var _ = BeforeEach(func() {
 	// For Postgres, truncating tables is a fast and effective way to ensure test isolation.
 	// 'RESTART IDENTITY' resets auto-incrementing primary keys.
 	// 'CASCADE' truncates dependent tables via foreign keys.
-	_, err := db.Exec("TRUNCATE TABLE users, companies, addresses, locations, commodity_attributes, commodities RESTART IDENTITY CASCADE")
+	_, err := db.Exec("TRUNCATE TABLE users, companies, addresses, locations, commodity_attributes, commodities, company_attributes RESTART IDENTITY CASCADE")
 	Expect(err).NotTo(HaveOccurred())
 })
-
-// getEnv is a helper to read an environment variable or return a default value.
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}

@@ -25,3 +25,13 @@ type User struct {
 func (User) TableName() string {
 	return "users"
 }
+
+// HasRole checks if a specific role exists in the user Roles.
+func (u User) HasRole(role Role) bool {
+	for _, existingRole := range u.Roles {
+		if existingRole == role {
+			return true
+		}
+	}
+	return false
+}

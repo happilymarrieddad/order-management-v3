@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -48,8 +51,10 @@ var _ = Describe("Create Address Handler", func() {
 			// The repo's Create method is responsible for geocoding and persistence.
 			mockAddressesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(newAddress, nil)
 
-			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPost, "/addresses", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 
 			Expect(rr.Code).To(Equal(http.StatusCreated))
 
@@ -63,15 +68,18 @@ var _ = Describe("Create Address Handler", func() {
 
 	Context("with invalid input", func() {
 		It("should return 400 for a malformed JSON body", func() {
-			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBufferString(`{]`), adminUser)
-			router.ServeHTTP(rr, req)
+			// Use testutils.PerformRequest
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPost, "/addresses", url.Values{}, bytes.NewBufferString(`{]`), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 		})
 
 		It("should return 400 for a validation error (missing line1)", func() {
 			// This payload is missing the required 'line_1' field.
-			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBufferString(`{"city": "Anytown", "state": "CA", "postal_code": "12345", "country": "USA"}`), adminUser)
-			router.ServeHTTP(rr, req)
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPost, "/addresses", url.Values{}, bytes.NewBufferString(`{"city": "Anytown", "state": "CA", "postal_code": "12345", "country": "USA"}`), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusBadRequest))
 			Expect(rr.Body.String()).To(ContainSubstring("Field 'line1' is required."))
 		})
@@ -80,8 +88,10 @@ var _ = Describe("Create Address Handler", func() {
 	Context("when the repository fails", func() {
 		It("should return 500 Internal Server Error", func() {
 			mockAddressesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, errors.New("db insert failed"))
-			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPost, "/addresses", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
 			Expect(rr.Body.String()).To(ContainSubstring("unable to create address"))
 		})
@@ -89,8 +99,9 @@ var _ = Describe("Create Address Handler", func() {
 
 	Context("when the user is not an admin", func() {
 		It("should return 403 Forbidden", func() {
-			req := newAuthenticatedRequest("POST", "/addresses", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
+			var reqErr error
+			rr, reqErr = testutils.PerformRequest(router, http.MethodPost, "/addresses", url.Values{}, bytes.NewBuffer(payloadBytes), basicUser, mockGlobalRepo)
+			Expect(reqErr).NotTo(HaveOccurred())
 			Expect(rr.Code).To(Equal(http.StatusForbidden))
 			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
 		})

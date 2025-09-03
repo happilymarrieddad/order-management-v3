@@ -4,72 +4,87 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Get User Handler", func() {
+var _ = Describe("Get User Endpoint", func() {
+	var (
+		rec        *httptest.ResponseRecorder
+		targetUser *types.User
+	)
 
-	Context("when the user exists", func() {
-		It("should return the user successfully", func() {
-			userID := int64(123)
-			expectedUser := &types.User{ID: userID, Email: "found@example.com"}
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		targetUser = &types.User{ID: 2, CompanyID: company.ID, FirstName: "Target", LastName: "User"}
+	})
 
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(expectedUser, true, nil)
+	Context("Happy Path", func() {
+		It("should get a user successfully for a normal user in their own company", func() {
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
 
-			req := newAuthenticatedRequest("GET", "/users/123", nil, basicUser)
-			router.ServeHTTP(rr, req)
+			req := newAuthenticatedRequest(http.MethodGet, "/users/2", nil, normalUser)
+			router.ServeHTTP(rec, req)
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.User
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.ID).To(Equal(targetUser.ID))
+			Expect(result.Password).To(BeEmpty())
+		})
 
-			var returnedUser types.User
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedUser)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedUser.ID).To(Equal(userID))
-			Expect(returnedUser.Email).To(Equal("found@example.com"))
-			Expect(returnedUser.Password).To(BeEmpty())
+		It("should get a user successfully for an admin", func() {
+			mockUsersRepo.EXPECT().Get(gomock.Any(), adminUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
+
+			req := newAuthenticatedRequest(http.MethodGet, "/users/2", nil, adminUser)
+			router.ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-	Context("when the user does not exist", func() {
-		It("should return 404 Not Found", func() {
-			userID := int64(404)
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(nil, false, nil)
+	Context("Error Paths", func() {
+		It("should fail if not authenticated", func() {
+			req := newAuthenticatedRequest(http.MethodGet, "/users/2", nil, nil)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
 
-			req := newAuthenticatedRequest("GET", "/users/404", nil, basicUser)
-			router.ServeHTTP(rr, req)
+		It("should fail if a normal user tries to get a user from another company", func() {
+			otherCompany := &types.Company{ID: 99, Name: "Other Company"}
+			otherUser := &types.User{ID: 3, CompanyID: otherCompany.ID, FirstName: "Other"}
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, otherUser.ID).Return(nil, false, nil)
+			req := newAuthenticatedRequest(http.MethodGet, "/users/3", nil, normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
 
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
-			Expect(rr.Body.String()).To(ContainSubstring("user not found"))
+		It("should fail with an invalid user ID", func() {
+			req := newAuthenticatedRequest(http.MethodGet, "/users/invalid-id", nil, normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should return 404 if the user is not found", func() {
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(nil, false, nil)
+			req := newAuthenticatedRequest(http.MethodGet, "/users/2", nil, normalUser)
+			router.ServeHTTP(rec, req)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
+			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(nil, false, dbErr)
+
+			req := newAuthenticatedRequest(http.MethodGet, "/users/2", nil, normalUser)
+			router.ServeHTTP(rec, req)
+
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
-
-	Context("with an invalid request", func() {
-		It("should return 404 for a non-integer ID", func() {
-			req := newAuthenticatedRequest("GET", "/users/abc", nil, basicUser)
-			router.ServeHTTP(rr, req)
-
-			// This is a router-level 404 because the route `/{id:[0-9]+}` does not match
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
-		})
-	})
-
-	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			userID := int64(500)
-			dbErr := errors.New("database connection lost")
-
-			mockUsersRepo.EXPECT().Get(gomock.Any(), userID).Return(nil, false, dbErr)
-
-			req := newAuthenticatedRequest("GET", "/users/500", nil, basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to get user"))
-		})
-	})
-
 })

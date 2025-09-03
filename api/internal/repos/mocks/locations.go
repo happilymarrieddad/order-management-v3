@@ -131,9 +131,9 @@ func (mr *MockLocationsRepoMockRecorder) Find(ctx, opts any) *gomock.Call {
 }
 
 // Get mocks base method.
-func (m *MockLocationsRepo) Get(ctx context.Context, id int64) (*types.Location, bool, error) {
+func (m *MockLocationsRepo) Get(ctx context.Context, companyID, id int64) (*types.Location, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", ctx, id)
+	ret := m.ctrl.Call(m, "Get", ctx, companyID, id)
 	ret0, _ := ret[0].(*types.Location)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -141,9 +141,9 @@ func (m *MockLocationsRepo) Get(ctx context.Context, id int64) (*types.Location,
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockLocationsRepoMockRecorder) Get(ctx, id any) *gomock.Call {
+func (mr *MockLocationsRepoMockRecorder) Get(ctx, companyID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockLocationsRepo)(nil).Get), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockLocationsRepo)(nil).Get), ctx, companyID, id)
 }
 
 // GetIncludeInvisible mocks base method.

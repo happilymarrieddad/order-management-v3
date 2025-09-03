@@ -22,6 +22,17 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	authUser, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found {
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if !authUser.HasRole(types.RoleAdmin) && authUser.CompanyID != payload.CompanyID {
+		middleware.WriteError(w, http.StatusForbidden, "user not authorized to create locations for this company")
+		return
+	}
+
 	// Validate dependencies
 	_, found, err := repo.Companies().Get(r.Context(), payload.CompanyID)
 	if err != nil {

@@ -2,6 +2,7 @@ package repos
 
 import (
 	"context"
+	"strings"
 
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	"xorm.io/xorm"
@@ -10,7 +11,7 @@ import (
 // FindCommoditiesOpts defines the options for finding commodities.
 type FindCommoditiesOpts struct {
 	IDs           []int64
-	Name          string
+	Names         []string
 	CommodityType types.CommodityType
 	Limit         int
 	Offset        int
@@ -90,8 +91,14 @@ func applyFindCommoditiesOpts(s *xorm.Session, opts *FindCommoditiesOpts) {
 	if len(opts.IDs) > 0 {
 		s.In("id", opts.IDs)
 	}
-	if opts.Name != "" {
-		s.Where("name LIKE ?", "%"+opts.Name+"%")
+	if len(opts.Names) > 0 {
+		orConditions := make([]string, len(opts.Names))
+		orArgs := make([]interface{}, len(opts.Names))
+		for i, name := range opts.Names {
+			orConditions[i] = "LOWER(name) LIKE LOWER(?)"
+			orArgs[i] = "%" + name + "%"
+		}
+		s.And("("+strings.Join(orConditions, " OR ")+")", orArgs...)
 	}
 	if opts.CommodityType != types.CommodityTypeUnknown {
 		s.Where("commodity_type = ?", opts.CommodityType)

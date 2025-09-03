@@ -30,16 +30,9 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the authenticated user to check for permissions
-	authUserID, found := middleware.GetUserIDFromContext(r.Context())
-	if !found {
-		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-
-	authUser, found, err := repo.Users().Get(r.Context(), authUserID)
-	if err != nil || !found {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to get authenticated user")
+	// Custom validation: At least one field must be provided for update
+	if payload.Name == nil && payload.AddressID == nil {
+		middleware.WriteError(w, http.StatusBadRequest, "at least one field (name or address_id) must be provided for update")
 		return
 	}
 
@@ -51,15 +44,6 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		middleware.WriteError(w, http.StatusNotFound, "company not found")
 		return
-	}
-
-	// Admins can update any company.
-	// Non-admins can only update their own company.
-	if !authUser.Roles.HasRole(types.RoleAdmin) {
-		if authUser.CompanyID != company.ID {
-			middleware.WriteError(w, http.StatusForbidden, "user not authorized to update this company")
-			return
-		}
 	}
 
 	if payload.Name != nil {

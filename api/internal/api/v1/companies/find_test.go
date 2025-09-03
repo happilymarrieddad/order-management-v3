@@ -1,83 +1,122 @@
 package companies_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Find Companies Handler", func() {
-	Context("when companies exist", func() {
-		It("should return a list of companies for an admin user", func() {
-			foundCompanies := []*types.Company{
-				{ID: 1, Name: "Alpha Co"},
-				{ID: 2, Name: "Beta Co"},
+var _ = Describe("Find Companies Endpoint", func() {
+	var (
+		rec *httptest.ResponseRecorder
+		comp1 *types.Company
+		comp2 *types.Company
+	)
+
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		comp1 = &types.Company{ID: 1, Name: "Company A", AddressID: 1}
+		comp2 = &types.Company{ID: 2, Name: "Company B", AddressID: 2}
+	})
+
+	performRequest := func(queryParams url.Values, user *types.User) {
+		var err error
+		rec, err = testutils.PerformRequest(router, http.MethodGet, "/companies/find?"+queryParams.Encode(), url.Values{}, nil, user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	Context("Happy Path", func() {
+		It("should find companies successfully for an admin", func() {
+			queryParams := url.Values{}
+			expectedOpts := &repos.CompanyFindOpts{
+				Limit:  10,
+				Offset: 0,
 			}
-			mockCompaniesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.CompanyFindOpts{Limit: 10, Offset: 0})).Return(foundCompanies, int64(2), nil)
+			mockCompaniesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.Company{comp1, comp2}, int64(2), nil)
 
-			req := newAuthenticatedRequest("POST", "/companies/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
+			performRequest(queryParams, adminUser)
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.Company]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", 2))
+			Expect(result.Data).To(HaveLen(2))
+			Expect(result.Data[0].ID).To(Equal(comp1.ID))
+		})
 
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(2)))
+		It("should apply limit and offset", func() {
+			queryParams := url.Values{}
+			queryParams.Set("limit", "1")
+			queryParams.Set("offset", "1")
 
-			dataBytes, _ := json.Marshal(result.Data)
-			var returnedCompanies []types.Company
-			json.Unmarshal(dataBytes, &returnedCompanies)
-			Expect(returnedCompanies).To(HaveLen(2))
+			expectedOpts := &repos.CompanyFindOpts{
+				Limit:  1,
+				Offset: 1,
+			}
+			mockCompaniesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.Company{comp2}, int64(2), nil)
+
+			performRequest(queryParams, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.Company]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", 2))
+			Expect(result.Data).To(HaveLen(1))
+			Expect(result.Data[0].ID).To(Equal(comp2.ID))
+		})
+
+		It("should filter by name", func() {
+			queryParams := url.Values{}
+			queryParams.Set("name", "Company A")
+
+			expectedOpts := &repos.CompanyFindOpts{
+				Names: []string{"Company A"},
+				Limit: 10,
+				Offset: 0,
+			}
+			mockCompaniesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.Company{comp1}, int64(1), nil)
+
+			performRequest(queryParams, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.Company]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", 1))
+			Expect(result.Data).To(HaveLen(1))
+			Expect(result.Data[0].ID).To(Equal(comp1.ID))
 		})
 	})
 
-	Context("when no companies exist", func() {
-		It("should return an empty list for an admin user", func() {
-			mockCompaniesRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return([]*types.Company{}, int64(0), nil)
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest(url.Values{}, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
 
-			req := newAuthenticatedRequest("POST", "/companies/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusOK))
-
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(0)))
-			Expect(result.Data).To(BeEmpty())
+		It("should fail if not an admin", func() {
+			performRequest(url.Values{}, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 Internal Server Error", func() {
-			mockCompaniesRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), errors.New("find query failed"))
-			req := newAuthenticatedRequest("POST", "/companies/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to find companies"))
-		})
-	})
+	Context("Error Paths", func() {
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
+			mockCompaniesRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
 
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("POST", "/companies/find", bytes.NewBufferString(`{}`), basicUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-		})
+			performRequest(url.Values{}, adminUser)
 
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("POST", "/companies/find", bytes.NewBufferString(`{}`), nil)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

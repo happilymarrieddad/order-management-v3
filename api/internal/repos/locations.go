@@ -3,6 +3,7 @@ package repos
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	"xorm.io/xorm"
@@ -27,7 +28,7 @@ type LocationFindOpts struct {
 type LocationsRepo interface {
 	Create(ctx context.Context, location *types.Location) error
 	CreateTx(ctx context.Context, tx *xorm.Session, location *types.Location) error
-	Get(ctx context.Context, id int64) (*types.Location, bool, error)
+	Get(ctx context.Context, companyID, id int64) (*types.Location, bool, error)
 	Update(ctx context.Context, location *types.Location) error
 	UpdateTx(ctx context.Context, tx *xorm.Session, location *types.Location) error
 	Delete(ctx context.Context, id int64) error
@@ -70,13 +71,18 @@ type LocationWithAddress struct {
 	types.Address  `xorm:"extends" json:"-"`
 }
 
-func (r *locationsRepo) Get(ctx context.Context, id int64) (*types.Location, bool, error) {
+func (r *locationsRepo) Get(ctx context.Context, companyID, id int64) (*types.Location, bool, error) {
 	locationWithAddress := new(LocationWithAddress)
-	has, err := r.db.Context(ctx).Table("locations").
+	s := r.db.Context(ctx).Table("locations").
 		Where("locations.id = ?", id).
 		Where("locations.visible = ?", true).
-		Join("INNER", "addresses", "addresses.id = locations.address_id").
-		Get(locationWithAddress)
+		Join("INNER", "addresses", "addresses.id = locations.address_id")
+
+	if companyID > 0 {
+		s.And("locations.company_id = ?", companyID)
+	}
+
+	has, err := s.Get(locationWithAddress)
 
 	if err != nil {
 		return nil, false, err
@@ -159,7 +165,13 @@ func applyLocationFindOpts(s *xorm.Session, opts *LocationFindOpts) {
 		s.In("address_id", opts.AddressIDs)
 	}
 	if len(opts.Names) > 0 {
-		s.In("name", opts.Names)
+		orConditions := make([]string, len(opts.Names))
+		orArgs := make([]interface{}, len(opts.Names))
+		for i, name := range opts.Names {
+			orConditions[i] = "LOWER(name) LIKE LOWER(?)"
+			orArgs[i] = "%" + name + "%"
+		}
+		s.And("("+strings.Join(orConditions, " OR ")+")", orArgs...)
 	}
 	if opts.Limit > 0 {
 		s.Limit(opts.Limit, opts.Offset)

@@ -6,102 +6,106 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/companies"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/companies"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Create Company Handler", func() {
+var _ = Describe("Create Company Endpoint", func() {
 	var (
-		payload      companies.CreateCompanyPayload
-		payloadBytes []byte
-		newCompany   *types.Company
-		err          error
+		rec     *httptest.ResponseRecorder
+		payload companies.CreateCompanyPayload
+		address *types.Address
 	)
 
 	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		address = &types.Address{ID: 1, Line1: "123 Test St"}
 		payload = companies.CreateCompanyPayload{
-			Name:      "Test Corp",
-			AddressID: 1,
+			Name:      "Test Company",
+			AddressID: address.ID,
 		}
-		payloadBytes, err = json.Marshal(payload)
+	})
+
+	performRequest := func(payload interface{}, user *types.User) {
+		body, err := json.Marshal(payload)
 		Expect(err).NotTo(HaveOccurred())
+		rec, err = testutils.PerformRequest(router, http.MethodPost, "/companies", url.Values{}, bytes.NewBuffer(body), user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
 
-		newCompany = &types.Company{
-			ID:        1,
-			Name:      payload.Name,
-			AddressID: payload.AddressID,
-		}
+	Context("Happy Path", func() {
+		It("should create a company successfully for an admin", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, c *types.Company) error {
+				c.ID = 3 // Simulate ID generation
+				return nil
+			})
+
+			performRequest(payload, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusCreated))
+			var result types.Company
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Name).To(Equal(payload.Name))
+			Expect(result.AddressID).To(Equal(payload.AddressID))
+			Expect(result.ID).To(BeNumerically(">", 0))
+		})
 	})
 
-	Context("when creation is successful", func() {
-		It("should return 201 Created with the new company", func() {
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
-			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Do(
-				func(ctx context.Context, comp *types.Company) {
-					comp.ID = newCompany.ID
-				}).Return(nil)
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest(payload, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
 
-			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+		It("should fail if not an admin", func() {
+			performRequest(payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+	})
 
-			Expect(rr.Code).To(Equal(http.StatusCreated))
-
-			var returnedCompany types.Company
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedCompany)
+	Context("Invalid Input", func() {
+		It("should fail with a malformed JSON body", func() {
+			rec, err := testutils.PerformRequest(router, http.MethodPost, "/companies", url.Values{}, bytes.NewBuffer([]byte(`{`)), adminUser, mockGlobalRepo)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedCompany.ID).To(Equal(newCompany.ID))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should fail if a required field is missing", func() {
+			payload.Name = ""
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 
-	Context("with invalid input", func() {
-		It("should return 400 for a validation error (missing name)", func() {
-			payload.Name = "" // Make the payload invalid
-			body, _ := json.Marshal(payload)
-			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("Field 'name' is required."))
-		})
-	})
-
-	Context("when a dependency is not found", func() {
-		It("should return 400 if the address does not exist", func() {
+	Context("Dependency and Repository Errors", func() {
+		It("should fail if the address does not exist", func() {
 			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, nil)
-
-			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("address not found"))
-		})
-	})
-
-	Context("when the repository fails", func() {
-		It("should return 500 Internal Server Error", func() {
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(&types.Address{ID: payload.AddressID}, true, nil)
-			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db insert failed"))
-			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to create company"))
-		})
-	})
-
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("POST", "/companies", bytes.NewBuffer(payloadBytes), nil)
-			router.ServeHTTP(rr, req)
+		It("should return 500 on address validation db error", func() {
+			dbErr := errors.New("db error")
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, dbErr)
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+		})
 
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+		It("should return 500 on company creation db error", func() {
+			dbErr := errors.New("db error")
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockCompaniesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dbErr)
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

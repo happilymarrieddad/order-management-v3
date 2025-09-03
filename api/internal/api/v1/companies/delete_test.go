@@ -3,61 +3,73 @@ package companies_test
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Delete Company Handler", func() {
-	Context("when deletion is successful", func() {
-		It("should return 204 No Content for an admin user", func() {
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(nil, true, nil)
-			mockCompaniesRepo.EXPECT().Delete(gomock.Any(), int64(1)).Return(nil)
+var _ = Describe("Delete Company Endpoint", func() {
+	var (
+		rec *httptest.ResponseRecorder
+	)
 
-			req := newAuthenticatedRequest("DELETE", "/companies/1", nil, adminUser)
-			router.ServeHTTP(rr, req)
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+	})
 
-			Expect(rr.Code).To(Equal(http.StatusNoContent))
+	performRequest := func(companyID string, user *types.User) {
+		var err error
+		rec, err = testutils.PerformRequest(router, http.MethodDelete, "/companies/"+companyID, url.Values{}, nil, user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	Context("Happy Path", func() {
+		It("should delete a company successfully for an admin", func() {
+			mockCompaniesRepo.EXPECT().Delete(gomock.Any(), company.ID).Return(nil)
+
+			performRequest("1", adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusNoContent))
 		})
 	})
 
-	Context("when the company does not exist", func() {
-		It("should return 404 Not Found", func() {
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest("1", nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
 
-			req := newAuthenticatedRequest("DELETE", "/companies/999", nil, adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+		It("should fail if not an admin", func() {
+			performRequest("1", normalUser)
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
 		})
 	})
 
-	Context("when the repository fails", func() {
-		It("should return 500 on delete failure", func() {
-			mockCompaniesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(nil, true, nil)
-			mockCompaniesRepo.EXPECT().Delete(gomock.Any(), int64(1)).Return(errors.New("db delete failed"))
-
-			req := newAuthenticatedRequest("DELETE", "/companies/1", nil, adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to delete company"))
+	Context("Invalid Input", func() {
+		It("should fail with an invalid company ID", func() {
+			performRequest("invalid-id", adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("DELETE", "/companies/1", nil, basicUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
+	Context("Repository Errors", func() {
+		It("should return 404 if the company is not found", func() {
+			mockCompaniesRepo.EXPECT().Delete(gomock.Any(), company.ID).Return(types.NewNotFoundError("company"))
+			performRequest("1", adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
 		})
 
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("DELETE", "/companies/1", nil, nil)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
+			mockCompaniesRepo.EXPECT().Delete(gomock.Any(), company.ID).Return(dbErr)
+			performRequest("1", adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

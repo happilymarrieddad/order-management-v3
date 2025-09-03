@@ -2,15 +2,17 @@ package repos
 
 import (
 	"context"
+	"strings"
 
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	"xorm.io/xorm"
 )
 
 type CompanyFindOpts struct {
-	IDs    []int64 `json:"-"`
-	Limit  int     `json:"limit"`
-	Offset int     `json:"offset"`
+	IDs    []int64  `json:"-"`
+	Limit  int      `json:"limit"`
+	Offset int      `json:"offset"`
+	Names  []string `json:"names"`
 }
 
 //go:generate mockgen -source=./companies.go -destination=./mocks/companies.go -package=mock_repos CompaniesRepo
@@ -125,6 +127,15 @@ func applyCompanyFindOpts(s *xorm.Session, opts *CompanyFindOpts) {
 	}
 	if len(opts.IDs) > 0 {
 		s.In("id", opts.IDs)
+	}
+	if len(opts.Names) > 0 {
+		orConditions := make([]string, len(opts.Names))
+		orArgs := make([]interface{}, len(opts.Names))
+		for i, name := range opts.Names {
+			orConditions[i] = "LOWER(name) LIKE LOWER(?)"
+			orArgs[i] = "%" + name + "%"
+		}
+		s.And("("+strings.Join(orConditions, " OR ")+")", orArgs...)
 	}
 	if opts.Limit > 0 {
 		s.Limit(opts.Limit, opts.Offset)

@@ -17,3 +17,8 @@ type UpdateUserPayload struct {
 	LastName  string `json:"last_name"  validate:"required"`
 	AddressID int64  `json:"address_id" validate:"required"`
 }
+
+// UpdateUserCompanyPayload defines the structure for updating a user's company.
+type UpdateUserCompanyPayload struct {
+	CompanyID int64 `json:"company_id" validate:"required"`
+}

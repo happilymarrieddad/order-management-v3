@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
 func Get(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +19,19 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loc, found, err := repo.Locations().Get(r.Context(), id)
+	authUser, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found {
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Admins can access any location, non-admins can only access locations for their company
+	var companyID int64
+	if !authUser.HasRole(types.RoleAdmin) {
+		companyID = authUser.CompanyID
+	}
+
+	loc, found, err := repo.Locations().Get(r.Context(), companyID, id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get location")
 		return

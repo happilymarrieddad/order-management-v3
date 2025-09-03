@@ -1,8 +1,6 @@
 package repos_test
 
 import (
-	"fmt"
-
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
@@ -128,21 +126,31 @@ var _ = Describe("CompanyRepo Integration", func() {
 	})
 
 	Context("Find", func() {
+		var (
+			company1 *types.Company
+			company2 *types.Company
+			company3 *types.Company
+		)
+
 		BeforeEach(func() {
 			// Seed the database with some companies for find tests
-			companiesToCreate := []*types.Company{
-				{Name: "Alpha Corp"}, {Name: "Beta LLC"}, {Name: "Gamma Inc"},
-			}
-			for i, company := range companiesToCreate {
-				// Each company needs a unique address
-				addr := &types.Address{Line1: fmt.Sprintf("%d Find St", i+1), City: "Findsburge", State: "FS", Country: "USA", PostalCode: "55555"}
-				createdAddr, err := addressRepo.Create(ctx, addr)
-				Expect(err).NotTo(HaveOccurred())
-				company.AddressID = createdAddr.ID
+			addr1 := &types.Address{Line1: "1 Find St", City: "Findsburge", State: "FS", Country: "USA", PostalCode: "55555"}
+			createdAddr1, err := addressRepo.Create(ctx, addr1)
+			Expect(err).NotTo(HaveOccurred())
+			company1 = &types.Company{Name: "Alpha Corp", AddressID: createdAddr1.ID}
+			Expect(companyRepo.Create(ctx, company1)).To(Succeed())
 
-				err = companyRepo.Create(ctx, company)
-				Expect(err).NotTo(HaveOccurred())
-			}
+			addr2 := &types.Address{Line1: "2 Find St", City: "Findsburge", State: "FS", Country: "USA", PostalCode: "55555"}
+			createdAddr2, err := addressRepo.Create(ctx, addr2)
+			Expect(err).NotTo(HaveOccurred())
+			company2 = &types.Company{Name: "Beta LLC", AddressID: createdAddr2.ID}
+			Expect(companyRepo.Create(ctx, company2)).To(Succeed())
+
+			addr3 := &types.Address{Line1: "3 Find St", City: "Findsburge", State: "FS", Country: "USA", PostalCode: "55555"}
+			createdAddr3, err := addressRepo.Create(ctx, addr3)
+			Expect(err).NotTo(HaveOccurred())
+			company3 = &types.Company{Name: "Gamma Inc", AddressID: createdAddr3.ID}
+			Expect(companyRepo.Create(ctx, company3)).To(Succeed())
 		})
 
 		It("should respect limit and offset", func() {
@@ -155,6 +163,51 @@ var _ = Describe("CompanyRepo Integration", func() {
 			Expect(len(companies)).To(Equal(2))
 			Expect(companies[0].Name).To(Equal("Beta LLC"))
 			Expect(companies[1].Name).To(Equal("Gamma Inc"))
+		})
+
+		It("should find companies by name using LIKE (case-insensitive and partial match)", func() {
+			foundCompanies, count, err := companyRepo.Find(ctx, &repos.CompanyFindOpts{Names: []string{"alpha"}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(1)))
+			Expect(foundCompanies).To(HaveLen(1))
+			Expect(foundCompanies[0].Name).To(Equal(company1.Name))
+
+			foundCompanies, count, err = companyRepo.Find(ctx, &repos.CompanyFindOpts{Names: []string{"llc"}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(1)))
+			Expect(foundCompanies).To(HaveLen(1))
+			Expect(foundCompanies[0].Name).To(Equal(company2.Name))
+
+			foundCompanies, count, err = companyRepo.Find(ctx, &repos.CompanyFindOpts{Names: []string{"corp", "inc"}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(2)))
+			Expect(foundCompanies).To(HaveLen(2))
+			Expect(foundCompanies).To(ConsistOf(
+				WithTransform(func(c *types.Company) string { return c.Name }, Equal(company1.Name)),
+				WithTransform(func(c *types.Company) string { return c.Name }, Equal(company3.Name)),
+			))
+		})
+
+		It("should find companies by IDs", func() {
+			foundCompanies, count, err := companyRepo.Find(ctx, &repos.CompanyFindOpts{IDs: []int64{company1.ID, company3.ID}})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(2)))
+			Expect(foundCompanies).To(HaveLen(2))
+			Expect(foundCompanies).To(ConsistOf(
+				WithTransform(func(c *types.Company) int64 { return c.ID }, Equal(company1.ID)),
+				WithTransform(func(c *types.Company) int64 { return c.ID }, Equal(company3.ID)),
+			))
+		})
+
+		It("should find companies by a combination of filters", func() {
+			foundCompanies, count, err := companyRepo.Find(ctx, &repos.CompanyFindOpts{
+				Names: []string{"beta"},
+				IDs:   []int64{company2.ID},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(int64(1)))
+			Expect(foundCompanies).To(HaveLen(1))
+			Expect(foundCompanies[0].ID).To(Equal(company2.ID))
 		})
 	})
 })

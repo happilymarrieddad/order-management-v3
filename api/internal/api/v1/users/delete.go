@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
 // @Summary      Delete a user
@@ -24,6 +25,19 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(vars["id"], 10, 64)
 	if err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid user ID")
+		return
+	}
+
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	authUser, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Only admins can delete users.
+	if !authUser.HasRole(types.RoleAdmin) {
+		middleware.WriteError(w, http.StatusForbidden, "unauthorized")
 		return
 	}
 

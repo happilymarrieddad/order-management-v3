@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
 func Delete(w http.ResponseWriter, r *http.Request) {
@@ -17,20 +18,13 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure the company exists before attempting to delete
-	_, found, err := repo.Companies().Get(r.Context(), id)
-	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to get company")
-		return
-	}
-	if !found {
-		middleware.WriteError(w, http.StatusNotFound, "company not found")
-		return
-	}
-
 	if err := repo.Companies().Delete(r.Context(), id); err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to delete company")
-		return
+		if types.IsNotFoundError(err) {
+			middleware.WriteError(w, http.StatusNotFound, "company not found")
+		} else {
+			middleware.WriteError(w, http.StatusInternalServerError, "unable to delete company")
+		}
+		return // Always return after handling an error
 	}
 
 	w.WriteHeader(http.StatusNoContent)

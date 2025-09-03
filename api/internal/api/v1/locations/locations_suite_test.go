@@ -1,8 +1,8 @@
 package locations_test
 
 import (
+	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,55 +19,58 @@ import (
 
 func TestLocations(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Locations Suite")
+	RunSpecs(t, "Locations Handler Suite")
 }
 
 var (
 	mockCtrl          *gomock.Controller
 	mockGlobalRepo    *mock_repos.MockGlobalRepo
-	mockCompaniesRepo *mock_repos.MockCompaniesRepo
-	mockLocationsRepo *mock_repos.MockLocationsRepo
-	mockAddressesRepo *mock_repos.MockAddressesRepo
 	mockUsersRepo     *mock_repos.MockUsersRepo
-	rr                *httptest.ResponseRecorder
+	mockCompaniesRepo *mock_repos.MockCompaniesRepo
+	mockAddressesRepo *mock_repos.MockAddressesRepo
+	mockLocationsRepo *mock_repos.MockLocationsRepo
 	router            *mux.Router
 	adminUser         *types.User
-	basicUser         *types.User
+	normalUser        *types.User
+	company           *types.Company
 )
 
 var _ = BeforeEach(func() {
 	mockCtrl = gomock.NewController(GinkgoT())
 	mockGlobalRepo = mock_repos.NewMockGlobalRepo(mockCtrl)
-	mockCompaniesRepo = mock_repos.NewMockCompaniesRepo(mockCtrl)
-	mockLocationsRepo = mock_repos.NewMockLocationsRepo(mockCtrl)
-	mockAddressesRepo = mock_repos.NewMockAddressesRepo(mockCtrl)
 	mockUsersRepo = mock_repos.NewMockUsersRepo(mockCtrl)
+	mockCompaniesRepo = mock_repos.NewMockCompaniesRepo(mockCtrl)
+	mockAddressesRepo = mock_repos.NewMockAddressesRepo(mockCtrl)
+	mockLocationsRepo = mock_repos.NewMockLocationsRepo(mockCtrl)
 
-	mockGlobalRepo.EXPECT().Locations().Return(mockLocationsRepo).AnyTimes()
+	// Set up the mock chain
+	mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo).AnyTimes()
 	mockGlobalRepo.EXPECT().Companies().Return(mockCompaniesRepo).AnyTimes()
 	mockGlobalRepo.EXPECT().Addresses().Return(mockAddressesRepo).AnyTimes()
-	mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo).AnyTimes()
+	mockGlobalRepo.EXPECT().Locations().Return(mockLocationsRepo).AnyTimes()
 
-	rr = httptest.NewRecorder()
+	// Set up the router
 	router = mux.NewRouter()
 	locations.AddRoutes(router)
 
-	adminUser = &types.User{ID: 1, Roles: types.Roles{types.RoleAdmin}}
-	basicUser = &types.User{ID: 2, Roles: types.Roles{types.RoleUser}}
+	// Set up common test data
+	company = &types.Company{ID: 1, Name: "Test Company"}
+	normalUser = &types.User{ID: 1, CompanyID: company.ID, Roles: types.Roles{types.RoleUser}}
+	adminUser = &types.User{ID: 2, CompanyID: company.ID, Roles: types.Roles{types.RoleAdmin}}
 })
 
 var _ = AfterEach(func() {
 	mockCtrl.Finish()
 })
 
-func newAuthenticatedRequest(method, url string, body io.Reader, user *types.User) *http.Request {
-	req, err := http.NewRequest(method, url, body)
-	Expect(err).NotTo(HaveOccurred())
-
+// newAuthenticatedRequest creates a new http.Request with the mocked GlobalRepo
+// and an optional authenticated user in the context.
+func newAuthenticatedRequest(method, url string, body []byte, user *types.User) *http.Request {
+	req := httptest.NewRequest(method, url, bytes.NewReader(body))
 	ctxWithRepo := context.WithValue(req.Context(), middleware.RepoKey, mockGlobalRepo)
 	if user != nil {
-		ctxWithRepo = middleware.AddUserIDToContext(ctxWithRepo, user.ID)
-		mockUsersRepo.EXPECT().Get(gomock.Any(), user.ID).Return(user, true, nil).AnyTimes()
+		ctxWithAuth := context.WithValue(ctxWithRepo, middleware.AuthUserKey, user)
+		return req.WithContext(ctxWithAuth)
 	}
 	return req.WithContext(ctxWithRepo)
 }

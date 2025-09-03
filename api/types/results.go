@@ -2,14 +2,14 @@ package types
 
 // FindResult is a generic container for find operations that return a list of
 // items and a total count.
-type FindResult struct {
-	Data  interface{} `json:"data"`
-	Total int64       `json:"total"`
+type FindResult[T any] struct {
+	Data  []T   `json:"data"`
+	Total int64 `json:"total"`
 }
 
 // NewFindResult creates a new FindResult.
-func NewFindResult(data interface{}, total int64) *FindResult {
-	return &FindResult{
+func NewFindResult[T any](data []T, total int64) *FindResult[T] {
+	return &FindResult[T]{
 		Data:  data,
 		Total: total,
 	}

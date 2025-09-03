@@ -15,6 +15,7 @@ To ensure our repository tests are consistent, isolated, and easy to understand,
 
 *   **Suite-Level Setup**: Global test setup (like initializing the database connection `db`, the global repository `gr`, and the context `ctx`) and cleanup (like truncating tables between tests) is handled in the `_suite_test.go` file for the package. Individual test files should not need to repeat this logic.
     *   When adding a new repository, ensure its corresponding table is included in the `TRUNCATE TABLE ... RESTART IDENTITY CASCADE` statement within the `BeforeEach` block of `repos_suite_test.go` to maintain proper test isolation and prevent data conflicts between tests.
+    *   Example: `TRUNCATE TABLE users, companies, company_attributes ...`
 
 *   **Default to Visible**: For repositories that have a `visible` column, the standard `Get` and `Find` methods should, by default, only return records where `visible = true`. Provide a separate method (e.g., `GetIncludeInvisible`) for cases where non-visible records need to be accessed.
 
@@ -25,22 +26,27 @@ To ensure our API handler tests are robust and consistent, please follow these c
 *   **Test Suite (`_suite_test.go`)**: Each handler package (e.g., `v1/users`) must have its own `_suite_test.go` file. This file is responsible for:
     *   Initializing `gomock` and creating mocks for all required repositories (`UsersRepo`, `CompaniesRepo`, etc.).
     *   Setting up the mock chain (e.g., `mockGlobalRepo.EXPECT().Users().Return(mockUsersRepo)`).
-    *   Providing a helper function (e.g., `createRequestWithRepo`) to generate `http.Request` objects for tests.
+    *   Providing a standardized helper function, `newAuthenticatedRequest`, to generate `http.Request` objects for tests.
 
 *   **Mock Injection via Context**: The test request helper function must inject the mocked `GlobalRepo` into the request's context using the correct key (`middleware.RepoKey`). For authenticated requests, it should also inject the user's ID into the context using `middleware.UserIDKey`. This is critical for simulating the application's dependency injection and authentication patterns.
     ```go
-    // Example from a test suite helper function
+    // Example from a test suite helper function, simulating the result of AuthMiddleware
     ctxWithRepo := context.WithValue(req.Context(), middleware.RepoKey, mockGlobalRepo)
-    req = req.WithContext(ctxWithRepo)
+    if user != nil {
+        ctxWithAuth := context.WithValue(ctxWithRepo, middleware.AuthUserKey, user)
+        return req.WithContext(ctxWithAuth)
+    }
+    return req.WithContext(ctxWithRepo) // For unauthenticated requests
     ```
+
+*   **User Role Setup**: For tests involving authentication and authorization, define `adminUser` and `normalUser` (or similar role-based user types) within the `_suite_test.go` file. This centralizes user setup and ensures consistent role-based testing across all handler tests.
 
 *   **Thorough Test Cases**: Each handler should be tested for multiple scenarios using separate `Context` blocks:
     *   The "happy path" (a valid request that succeeds).
     *   Invalid request bodies (malformed JSON, missing required fields, validation errors like mismatched passwords).
     *   Dependency failures (e.g., trying to create a user for a `company_id` that doesn't exist).
-    *   Repository errors (simulating database failures like unique constraint violations).
-    *   For public endpoints, ensure tests cover non-happy path scenarios such as unsupported HTTP methods, and verify appropriate error responses (e.g., 405 Method Not Allowed).
-*   **Individual Test Files**: Each test file (e.g., `create_test.go`, `get_test.go`) should contain specific test cases for a handler, and may include its own helper functions (like `createRequest`, `executeRequest`) if those helpers are specific to that test file's context.
+    *   Repository errors (simulating database failures).
+    *   **Authorization**: For endpoints with ownership rules, test that non-admins are forbidden (`403`) from accessing other tenants' data. For admin-only endpoints, test that both non-admins (`403`) and unauthenticated users (`401`) are rejected.
 
 *   **JSON Payload Casing**: Pay close attention to JSON key casing in *all* JSON payloads (request and response). This project uses **`snake_case`**. Mismatched casing will cause validation to fail and result in `400 Bad Request` errors.
 
@@ -49,10 +55,15 @@ To ensure our API handler tests are robust and consistent, please follow these c
 *   **Standardized Error Responses**: Always use `middleware.WriteError(w, http.Status, message)` to send error responses to ensure consistency in format and status codes across the API.
 
 *   **Invalid Path Parameters**: When testing endpoints with path parameters that expect a specific type (e.g., integer IDs), ensure tests cover scenarios where invalid formats are provided (e.g., non-numeric strings for an integer ID). Such cases typically result in `404 Not Found` responses due to route matching failures, rather than `400 Bad Request` from handler-level validation.
+*   **Repository Error Wrapping**: Repository errors should be wrapped in user-friendly messages in the handler. Do not leak raw database errors (e.g., 'duplicate key value...') to the client. Instead, return a generic message like 'unable to update resource' or a specific, user-friendly one like 'resource with this name already exists'.
 
 ### Dependency Validation
 
 *   **Validate Related Entities**: Before creating or updating entities that have foreign key relationships (e.g., a `User` requiring a `Company` and `Address`), always validate that the related entities exist. Return appropriate `400 Bad Request` or `404 Not Found` errors if dependencies are not met.
+
+### Data Model & Business Logic
+
+*   **Ownership Checks (Multi-tenancy)**: Handlers that create or modify company-scoped resources (e.g., `User`, `Location`) must verify that the acting user belongs to the correct company. While admins have broad permissions, they are also subject to company ownership rules for most resources. For example, an admin can only find locations within their own company.
 
 ## API Documentation (Swagger)
 
@@ -108,6 +119,8 @@ A complete example of this pattern can be found in `types/roles.go`. Please foll
 
 ## Interaction Guidelines
 
+*   **Tone and Style**: Adopt a conversational style akin to J.A.R.V.I.S. from Iron Man.
+*   **No colloquialisms**: Avoid informal phrases like 'My Bad'.
 *   **Test Execution**: Do not ask to run tests after making changes. Assume tests will be run by the user or as part of a separate verification step.
 
 ## Lessons Learned
@@ -117,3 +130,9 @@ A complete example of this pattern can be found in `types/roles.go`. Please foll
 *   **XORM `extends` and JSON tag conflicts**: When using XORM's `extends` tag to embed structs, be aware of potential JSON tag conflicts if both embedded structs have fields with the same JSON tag (e.g., `json:"id"`). Resolve this by adding `json:"-"` to the conflicting field in the embedded struct within the composite struct (e.g., `types.Address `xorm:"extends" json:"-"`). This tells the JSON marshaller to ignore that specific field during serialization.
 *   **Testing `unknown` / Zero-Value Enum Constants**: When creating API endpoints that return lists of enum values (e.g., `AllRoles()`, `AllCommodityTypes()`), ensure that `unknown` or zero-value constants are *not* included in the returned list unless they represent a valid, selectable option for the user. Update tests to reflect this expectation, as these values are often internal representations and not meant for external consumption.
 *   **Enum Constant Usage**: When using enum constants (like `types.CommodityType`), always verify the available constants by checking the corresponding `types` package file (e.g., `types/commodity_types.go`). Do not assume the existence of a constant without explicit definition.
+*   **Variable Shadowing in Tests**: Be cautious with `:=` vs. `=` in `BeforeEach` blocks. Using `:=` can shadow package-level mock variables, causing them to be `nil` in tests and leading to panics.
+*   **Mocking Method Signatures**: Ensure `gomock`'s `.Return()` calls match the exact number and type of return values for the mocked method signature to avoid 'wrong number of arguments' panics.
+*   **Validation Error Messages**: Be aware that the validation library may generate error messages based on the struct's `json` tag or a lowercased version of the field name. Assertions in tests must match this exact format.
+*   **Test Refactoring for Authentication**: Using `adminUser` and `normalUser` variables in test suites (`_suite_test.go`) to clearly separate and manage authenticated user roles in tests. This improves clarity and consistency.
+*   **Route-Level Authorization**: Understand that routes can be restricted by middleware (e.g., `adminRouter.Use(middleware.AuthUserAdminRequiredMuxMiddleware())`). Tests should reflect this by expecting `403 Forbidden` for unauthorized access, rather than attempting to test business logic that will not be reached.
+*   **`utils.TRef` vs `utils.Ref`**: Ensure correct usage of utility functions for creating pointers to primitive types (e.g., `utils.TRef` if available and intended for this purpose).
