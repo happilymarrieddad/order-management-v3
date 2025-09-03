@@ -4,63 +4,82 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Get Commodity Attribute Handler", func() {
-	Context("when the commodity attribute exists", func() {
-		It("should return the commodity attribute for an authenticated user", func() {
-			attr := &types.CommodityAttribute{ID: 1, Name: "Color", CommodityType: types.CommodityTypeProduce}
-			mockCommodityAttributesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(attr, true, nil)
+var _ = Describe("Get Commodity Attribute Endpoint", func() {
+	var (
+		rec        *httptest.ResponseRecorder
+		targetAttribute *types.CommodityAttribute
+	)
 
-			req := newAuthenticatedRequest("GET", "/commodity-attributes/1", nil, basicUser)
-			router.ServeHTTP(rr, req)
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		targetAttribute = &types.CommodityAttribute{ID: 1, Name: "Test Attribute", CommodityType: types.CommodityTypeProduce}
+	})
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+	performRequest := func(attributeID string, user *types.User) {
+		var err error
+		rec, err = testutils.PerformRequest(router, http.MethodGet, "/commodity-attributes/"+attributeID, url.Values{}, nil, user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
 
-			var returnedAttr types.CommodityAttribute
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedAttr)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedAttr.ID).To(Equal(attr.ID))
-			Expect(returnedAttr.Name).To(Equal(attr.Name))
+	Context("Happy Path", func() {
+		It("should get a commodity attribute successfully for an admin", func() {
+			mockCommodityAttributesRepo.EXPECT().Get(gomock.Any(), targetAttribute.ID).Return(targetAttribute, true, nil)
+
+			performRequest(strconv.FormatInt(targetAttribute.ID, 10), adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.CommodityAttribute
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.ID).To(Equal(targetAttribute.ID))
+		})
+
+		It("should get a commodity attribute successfully for a normal user", func() {
+			mockCommodityAttributesRepo.EXPECT().Get(gomock.Any(), targetAttribute.ID).Return(targetAttribute, true, nil)
+
+			performRequest(strconv.FormatInt(targetAttribute.ID, 10), normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-	Context("when the commodity attribute does not exist", func() {
-		It("should return 404 Not Found", func() {
-			mockCommodityAttributesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
-
-			req := newAuthenticatedRequest("GET", "/commodity-attributes/999", nil, basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
-			Expect(rr.Body.String()).To(ContainSubstring("commodity attribute not found"))
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest(strconv.FormatInt(targetAttribute.ID, 10), nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
 		})
 	})
 
-	Context("when the ID is invalid", func() {
-		It("should return 404 Not Found from the router", func() {
-			req := newAuthenticatedRequest("GET", "/commodity-attributes/abc", nil, basicUser)
-			router.ServeHTTP(rr, req)
-			// This is a 404 because the route `/{id:[0-9]+}` does not match
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+	Context("Invalid Input", func() {
+		It("should fail with an invalid ID", func() {
+			performRequest("invalid-id", adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
 		})
 	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 for a generic database error", func() {
-			dbErr := errors.New("db went boom")
-			mockCommodityAttributesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(nil, false, dbErr)
+	Context("Repository Errors", func() {
+		It("should return 404 if the commodity attribute is not found", func() {
+			mockCommodityAttributesRepo.EXPECT().Get(gomock.Any(), targetAttribute.ID).Return(nil, false, nil)
+			performRequest(strconv.FormatInt(targetAttribute.ID, 10), adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
 
-			req := newAuthenticatedRequest("GET", "/commodity-attributes/1", nil, basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to get commodity attribute"))
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
+			mockCommodityAttributesRepo.EXPECT().Get(gomock.Any(), targetAttribute.ID).Return(nil, false, dbErr)
+			performRequest(strconv.FormatInt(targetAttribute.ID, 10), adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

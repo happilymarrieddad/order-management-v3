@@ -186,44 +186,18 @@ var _ = Describe("Find Locations Endpoint", func() {
 			queryParams := url.Values{}
 			queryParams.Set("limit", "invalid")
 
-			// Expect default limit to be used
-			expectedOpts := &repos.LocationFindOpts{
-				CompanyIDs: []int64{adminUser.CompanyID},
-				Limit:      10,
-				Offset:     0,
-			}
-			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.Location{loc1}, int64(1), nil)
-
 			performRequest(adminUser, queryParams)
 
-			Expect(rec.Code).To(Equal(http.StatusOK))
-			var result types.FindResult[types.Location] // Changed to generic FindResult
-			err := json.NewDecoder(rec.Body).Decode(&result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(1)))
-			Expect(result.Data).To(HaveLen(1))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 
 		It("should handle invalid offset parameter gracefully", func() {
 			queryParams := url.Values{}
 			queryParams.Set("offset", "invalid")
 
-			// Expect default offset to be used
-			expectedOpts := &repos.LocationFindOpts{
-				CompanyIDs: []int64{adminUser.CompanyID},
-				Limit:      10,
-				Offset:     0,
-			}
-			mockLocationsRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.Location{loc1}, int64(1), nil)
-
 			performRequest(adminUser, queryParams)
 
-			Expect(rec.Code).To(Equal(http.StatusOK))
-			var result types.FindResult[types.Location] // Changed to generic FindResult
-			err := json.NewDecoder(rec.Body).Decode(&result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(1)))
-			Expect(result.Data).To(HaveLen(1))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 })

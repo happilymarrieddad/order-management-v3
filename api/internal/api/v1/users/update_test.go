@@ -14,6 +14,7 @@ import (
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
 var _ = Describe("Update User Endpoint", func() {
@@ -30,20 +31,20 @@ var _ = Describe("Update User Endpoint", func() {
 		address = &types.Address{ID: 20, Line1: "New Address"}
 
 		payload = users.UpdateUserPayload{
-			FirstName: "Updated",
-			LastName:  "User",
-			AddressID: address.ID,
+			FirstName: utils.Ref("Updated"),
+			LastName:  utils.Ref("User"),
+			AddressID: utils.Ref(address.ID),
 		}
 	})
 
 	Context("Happy Path", func() {
 		It("should update a user successfully for a normal user updating themselves", func() {
 			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(address, true, nil)
 			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, u *types.User) error {
-				Expect(u.FirstName).To(Equal(payload.FirstName))
-				Expect(u.LastName).To(Equal(payload.LastName))
-				Expect(u.AddressID).To(Equal(payload.AddressID))
+				Expect(u.FirstName).To(Equal(*payload.FirstName))
+				Expect(u.LastName).To(Equal(*payload.LastName))
+				Expect(u.AddressID).To(Equal(*payload.AddressID))
 				return nil
 			})
 
@@ -55,13 +56,13 @@ var _ = Describe("Update User Endpoint", func() {
 			Expect(rec.Code).To(Equal(http.StatusOK))
 			var result types.User
 			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
-			Expect(result.FirstName).To(Equal(payload.FirstName))
+			Expect(result.FirstName).To(Equal(utils.Deref(payload.FirstName)))
 			Expect(result.Password).To(BeEmpty())
 		})
 
 		It("should update a user successfully for an admin updating any user", func() {
 			mockUsersRepo.EXPECT().Get(gomock.Any(), adminUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(address, true, nil)
 			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 
 			body, err := json.Marshal(payload)
@@ -110,7 +111,9 @@ var _ = Describe("Update User Endpoint", func() {
 		})
 
 		It("should fail if a required field is missing", func() {
-			payload.FirstName = ""
+			payload.FirstName = nil
+			payload.LastName = nil
+			payload.AddressID = nil
 			body, err := json.Marshal(payload)
 			Expect(err).NotTo(HaveOccurred())
 			req := newAuthenticatedRequest(http.MethodPut, "/users/1", bytes.NewBuffer(body), adminUser)
@@ -143,7 +146,7 @@ var _ = Describe("Update User Endpoint", func() {
 
 		It("should return 400 if the address does not exist", func() {
 			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(nil, false, nil)
 
 			body, err := json.Marshal(payload)
 			Expect(err).NotTo(HaveOccurred())
@@ -155,7 +158,7 @@ var _ = Describe("Update User Endpoint", func() {
 		It("should return 500 on get address db error", func() {
 			dbErr := errors.New("db error")
 			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(nil, false, dbErr)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(nil, false, dbErr)
 
 			body, err := json.Marshal(payload)
 			Expect(err).NotTo(HaveOccurred())
@@ -166,7 +169,7 @@ var _ = Describe("Update User Endpoint", func() {
 
 		It("should return 500 on update user db error", func() {
 			mockUsersRepo.EXPECT().Get(gomock.Any(), normalUser.CompanyID, targetUser.ID).Return(targetUser, true, nil)
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), payload.AddressID).Return(address, true, nil)
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), *payload.AddressID).Return(address, true, nil)
 			dbErr := errors.New("db error")
 			mockUsersRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(dbErr)
 

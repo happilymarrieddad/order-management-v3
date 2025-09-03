@@ -10,6 +10,6 @@ type CreateCommodityAttributePayload struct {
 
 // UpdateCommodityAttributePayload defines the request body for updating an existing commodity attribute.
 type UpdateCommodityAttributePayload struct {
-	Name          *string              `json:"name,omitempty"`
-	CommodityType *types.CommodityType `json:"commodityType,omitempty"`
+	Name          *string              `json:"name,omitempty" validate:"required_without_all=CommodityType"`
+	CommodityType *types.CommodityType `json:"commodityType,omitempty" validate:"required_without_all=Name"`
 }

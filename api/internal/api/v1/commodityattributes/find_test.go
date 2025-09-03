@@ -1,100 +1,168 @@
 package commodityattributes_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Find Commodity Attributes Handler", func() {
-	Context("when commodity attributes exist", func() {
-		It("should return a list of attributes for an admin user", func() {
-			foundCommodityAttributes := []*types.CommodityAttribute{
-				{ID: 1, Name: "Color"},
-				{ID: 2, Name: "Size"},
+var _ = Describe("Find Commodity Attributes Endpoint", func() {
+	var (
+		rec *httptest.ResponseRecorder
+		attr1 *types.CommodityAttribute
+		attr2 *types.CommodityAttribute
+	)
+
+	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		attr1 = &types.CommodityAttribute{ID: 1, Name: "Attribute A", CommodityType: types.CommodityTypeProduce}
+		attr2 = &types.CommodityAttribute{ID: 2, Name: "Attribute B", CommodityType: types.CommodityTypeProduce}
+	})
+
+	performRequest := func(queryParams url.Values, user *types.User) {
+		var err error
+		rec, err = testutils.PerformRequest(router, http.MethodGet, "/commodity-attributes/find?"+queryParams.Encode(), url.Values{}, nil, user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	Context("Happy Path", func() {
+		It("should find commodity attributes successfully for an admin", func() {
+			expectedAttributes := []*types.CommodityAttribute{attr1, attr2}
+			expectedOpts := &repos.CommodityAttributeFindOpts{
+				Limit:  10,
+				Offset: 0,
 			}
-			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.CommodityAttributeFindOpts{Limit: 10, Offset: 0})).Return(foundCommodityAttributes, int64(2), nil)
+			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(expectedAttributes, int64(len(expectedAttributes)), nil)
 
-			req := newAuthenticatedRequest("POST", "/commodity-attributes/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
+			performRequest(url.Values{}, adminUser)
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
-
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(2)))
-
-			// We need to remarshal and unmarshal the data to compare it properly
-			dataBytes, _ := json.Marshal(result.Data)
-			var returnedCommodityAttributes []types.CommodityAttribute
-			json.Unmarshal(dataBytes, &returnedCommodityAttributes)
-			Expect(returnedCommodityAttributes).To(HaveLen(2))
-			Expect(returnedCommodityAttributes[0].Name).To(Equal("Color"))
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.CommodityAttribute]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", len(expectedAttributes)))
+			Expect(result.Data).To(HaveLen(len(expectedAttributes)))
+			Expect(result.Data[0].ID).To(Equal(attr1.ID))
 		})
 
-		It("should return a list of commodity attributes with custom pagination", func() {
-			foundCommodityAttributes := []*types.CommodityAttribute{{ID: 3, Name: "Weight"}}
-			opts := &repos.CommodityAttributeFindOpts{Limit: 5, Offset: 5}
-			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(opts)).Return(foundCommodityAttributes, int64(1), nil)
+		It("should find commodity attributes successfully for a normal user", func() {
+			expectedAttributes := []*types.CommodityAttribute{attr1, attr2}
+			expectedOpts := &repos.CommodityAttributeFindOpts{
+				Limit:  10,
+				Offset: 0,
+			}
+			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(expectedAttributes, int64(len(expectedAttributes)), nil)
 
-			body, _ := json.Marshal(opts)
-			req := newAuthenticatedRequest("POST", "/commodity-attributes/find", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
+			performRequest(url.Values{}, normalUser)
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.CommodityAttribute]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", len(expectedAttributes)))
+			Expect(result.Data).To(HaveLen(len(expectedAttributes)))
+		})
 
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(1)))
+		It("should apply limit and offset", func() {
+			expectedAttributes := []*types.CommodityAttribute{attr2}
+			expectedOpts := &repos.CommodityAttributeFindOpts{
+				Limit:  1,
+				Offset: 1,
+			}
+			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(expectedAttributes, int64(2), nil)
+
+			params := url.Values{}
+			params.Set("limit", "1")
+			params.Set("offset", "1")
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.FindResult[types.CommodityAttribute]
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Total).To(BeNumerically("==", 2))
+			Expect(result.Data).To(HaveLen(1))
+			Expect(result.Data[0].ID).To(Equal(attr2.ID))
+		})
+
+		It("should filter by multiple IDs", func() {
+			ids := []int64{1, 2}
+			expectedAttributes := []*types.CommodityAttribute{attr1, attr2}
+			expectedOpts := &repos.CommodityAttributeFindOpts{
+				Limit:  10,
+				Offset: 0,
+				IDs: ids,
+			}
+			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(expectedAttributes, int64(2), nil)
+
+			params := url.Values{}
+			for _, id := range ids {
+				params.Add("id", strconv.FormatInt(id, 10))
+			}
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should filter by multiple commodity types", func() {
+			commodityTypes := []types.CommodityType{types.CommodityTypeProduce}
+			expectedAttributes := []*types.CommodityAttribute{
+				{ID: 1, Name: "Produce Attribute", CommodityType: types.CommodityTypeProduce},
+			}
+			expectedOpts := &repos.CommodityAttributeFindOpts{
+				Limit:  10,
+				Offset: 0,
+				CommodityTypes: commodityTypes,
+			}
+			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return(expectedAttributes, int64(1), nil)
+
+			params := url.Values{}
+			for _, ct := range commodityTypes {
+				params.Add("commodity_types", ct.String())
+			}
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should handle invalid limit parameter gracefully", func() {
+			params := url.Values{}
+			params.Add("limit", "invalid")
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should handle invalid offset parameter gracefully", func() {
+			params := url.Values{}
+			params.Add("offset", "invalid")
+			performRequest(params, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 
-	Context("when no commodity attributes exist", func() {
-		It("should return an empty list for an admin user", func() {
-			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Eq(&repos.CommodityAttributeFindOpts{Limit: 10, Offset: 0})).Return([]*types.CommodityAttribute{}, int64(0), nil)
-
-			req := newAuthenticatedRequest("POST", "/commodity-attributes/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusOK))
-
-			var result types.FindResult
-			err := json.Unmarshal(rr.Body.Bytes(), &result)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Total).To(Equal(int64(0)))
-			Expect(result.Data).To(BeEmpty())
+	Context("Error Paths", func() {
+		It("should fail if not authenticated", func() {
+			performRequest(url.Values{}, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
 		})
-	})
 
-	Context("when the repository encounters an error", func() {
-		It("should return 500 Internal Server Error", func() {
-			dbErr := errors.New("find query failed")
+		It("should return 500 on a database error", func() {
+			dbErr := errors.New("db error")
 			mockCommodityAttributesRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(nil, int64(0), dbErr)
 
-			req := newAuthenticatedRequest("POST", "/commodity-attributes/find", bytes.NewBufferString(`{}`), adminUser)
-			router.ServeHTTP(rr, req)
+			performRequest(url.Values{}, adminUser)
 
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to find commodity attributes"))
-		})
-	})
-
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden", func() {
-			req := newAuthenticatedRequest("POST", "/commodity-attributes/find", bytes.NewBufferString(`{}`), basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

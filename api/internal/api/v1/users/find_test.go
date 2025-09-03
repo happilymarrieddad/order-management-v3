@@ -184,34 +184,20 @@ var _ = Describe("Find Users Endpoint", func() {
 			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 
-		It("should handle invalid limit parameter gracefully", func() {
-			// Expect default limit to be used
-			expectedOpts := &repos.UserFindOpts{
-				Limit:  10,
-				Offset: 0,
-			}
-			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.User{}, int64(0), nil)
-
+		It("should return StatusBadRequest for invalid limit parameter", func() {
 			params := url.Values{}
 			params.Add("limit", "invalid")
 			performRequest(params, adminUser)
 
-			Expect(rec.Code).To(Equal(http.StatusOK))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("should handle invalid offset parameter gracefully", func() {
-			// Expect default offset to be used
-			expectedOpts := &repos.UserFindOpts{
-				Limit:  10,
-				Offset: 0,
-			}
-			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Eq(expectedOpts)).Return([]*types.User{}, int64(0), nil)
-
+		It("should return StatusBadRequest for invalid offset parameter", func() {
 			params := url.Values{}
 			params.Add("offset", "invalid")
 			performRequest(params, adminUser)
 
-			Expect(rec.Code).To(Equal(http.StatusOK))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 

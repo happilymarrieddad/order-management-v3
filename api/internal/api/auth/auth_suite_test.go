@@ -39,7 +39,7 @@ var _ = BeforeEach(func() {
 
 	// Set up the router for auth handlers
 	router = mux.NewRouter()
-	auth.AddRoutes(router)
+	router.HandleFunc("/login", auth.Login).Methods("POST")
 })
 
 var _ = AfterEach(func() {

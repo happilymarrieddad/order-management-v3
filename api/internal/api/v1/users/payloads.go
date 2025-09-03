@@ -12,10 +12,11 @@ type CreateUserPayload struct {
 }
 
 // UpdateUserPayload defines the structure for updating a user.
+// At least one field must be provided.
 type UpdateUserPayload struct {
-	FirstName string `json:"first_name" validate:"required"`
-	LastName  string `json:"last_name"  validate:"required"`
-	AddressID int64  `json:"address_id" validate:"required"`
+	FirstName *string `json:"first_name,omitempty" validate:"required_without_all=LastName AddressID"`
+	LastName  *string `json:"last_name,omitempty"  validate:"required_without_all=FirstName AddressID"`
+	AddressID *int64  `json:"address_id,omitempty" validate:"required_without_all=FirstName LastName"`
 }
 
 // UpdateUserCompanyPayload defines the structure for updating a user's company.

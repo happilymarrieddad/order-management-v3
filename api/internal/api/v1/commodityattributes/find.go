@@ -7,35 +7,70 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
 // @Summary      Find commodity attributes
-// @Description  Finds commodity attributes with optional filters and pagination by sending a JSON body.
+// @Description  Finds commodity attributes with optional filters and pagination by sending query parameters.
 // @Tags         commodity-attributes
 // @Accept       json
 // @Produce      json
-// @Param        opts body      repos.CommodityAttributeFindOpts true "Find options"
+// @Param        limit query int false "Number of records to return"
+// @Param        offset query int false "Number of records to skip"
+// @Param        id query []int false "Filter by Commodity Attribute IDs"
+// @Param        commodity_types query []string false "Filter by Commodity Types (e.g., 'grain', 'fruit')"
 // @Success      200  {object}  types.FindResult{data=[]types.CommodityAttribute} "A list of commodity attributes"
 // @Failure      400  {object}  middleware.ErrorResponse "Bad Request"
 // @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
 // @Security     AppTokenAuth
-// @Router       /commodity-attributes/find [post]
+// @Router       /commodity-attributes/find [get]
 func Find(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
-
-	var opts repos.CommodityAttributeFindOpts
-	// Decode the request body into the options struct
-	if err := json.NewDecoder(r.Body).Decode(&opts); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	_, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	// Set default limit if none is provided or if it's invalid.
-	if opts.Limit <= 0 {
-		opts.Limit = 10
+	repo := middleware.GetRepo(r.Context())
+
+	limit, err := utils.GetQueryInt(r, "limit")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid limit format")
+		return
+	}
+	if limit == 0 {
+		limit = 10
 	}
 
-	commodityAttributes, count, err := repo.CommodityAttributes().Find(r.Context(), &opts)
+	offset, err := utils.GetQueryInt(r, "offset")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid offset format")
+		return
+	}
+
+	ids, err := utils.GetQueryInt64Slice(r, "id")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid id format")
+		return
+	}
+
+	var commodityTypes []types.CommodityType
+	for _, ctStr := range r.URL.Query()["commodity_types"] {
+		ct, err := types.ParseCommodityType(ctStr)
+		if err == nil && ct != types.CommodityTypeUnknown {
+			commodityTypes = append(commodityTypes, ct)
+		}
+	}
+
+	opts := &repos.CommodityAttributeFindOpts{
+		Limit:          limit,
+		Offset:         offset,
+		IDs:            ids,
+		CommodityTypes: commodityTypes,
+	}
+
+	commodityAttributes, count, err := repo.CommodityAttributes().Find(r.Context(), opts)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to find commodity attributes")
 		return

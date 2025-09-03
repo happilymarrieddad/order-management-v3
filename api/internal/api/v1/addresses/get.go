@@ -10,6 +10,13 @@ import (
 )
 
 func Get(w http.ResponseWriter, r *http.Request) {
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	_, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	repo := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)

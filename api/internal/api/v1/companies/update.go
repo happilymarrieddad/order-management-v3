@@ -8,8 +8,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
+// Update handles updating an existing company.
 func Update(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
 
@@ -30,12 +32,6 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Custom validation: At least one field must be provided for update
-	if payload.Name == nil && payload.AddressID == nil {
-		middleware.WriteError(w, http.StatusBadRequest, "at least one field (name or address_id) must be provided for update")
-		return
-	}
-
 	company, found, err := repo.Companies().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get company")
@@ -46,12 +42,16 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only admins can update companies.
+	// This check is done in the middleware layer.
+
 	if payload.Name != nil {
-		company.Name = *payload.Name
+		company.Name = utils.Deref(payload.Name)
 	}
+
 	if payload.AddressID != nil {
-		// Validate the new address exists before updating
-		_, found, err := repo.Addresses().Get(r.Context(), *payload.AddressID)
+		// Validate the new address exists before updating the company
+		_, found, err := repo.Addresses().Get(r.Context(), utils.Deref(payload.AddressID))
 		if err != nil {
 			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 			return
@@ -60,7 +60,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 			middleware.WriteError(w, http.StatusBadRequest, "address not found")
 			return
 		}
-		company.AddressID = *payload.AddressID
+		company.AddressID = utils.Deref(payload.AddressID)
 	}
 
 	if err := repo.Companies().Update(r.Context(), company); err != nil {

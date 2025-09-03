@@ -59,19 +59,26 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate the new address exists before updating the user
-	_, found, err = repo.Addresses().Get(r.Context(), payload.AddressID)
-	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
-		return
-	}
-	if !found {
-		middleware.WriteError(w, http.StatusBadRequest, "address not found")
-		return
+	if payload.AddressID != nil {
+		_, found, err = repo.Addresses().Get(r.Context(), *payload.AddressID)
+		if err != nil {
+			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
+			return
+		}
+		if !found {
+			middleware.WriteError(w, http.StatusBadRequest, "address not found")
+			return
+		}
+		targetUser.AddressID = *payload.AddressID
 	}
 
-	targetUser.FirstName = payload.FirstName
-	targetUser.LastName = payload.LastName
-	targetUser.AddressID = payload.AddressID
+	if payload.FirstName != nil {
+		targetUser.FirstName = *payload.FirstName
+	}
+
+	if payload.LastName != nil {
+		targetUser.LastName = *payload.LastName
+	}
 
 	if err := repo.Users().Update(r.Context(), targetUser); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update user")

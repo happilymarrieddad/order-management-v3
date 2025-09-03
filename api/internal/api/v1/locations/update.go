@@ -53,8 +53,10 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate new address if provided
+	// No manual validation check needed here, as it's handled by types.Validate(payload)
+
 	if payload.AddressID != nil {
+		// Validate new address if provided
 		_, found, err := repo.Addresses().Get(r.Context(), *payload.AddressID)
 		if err != nil {
 			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")

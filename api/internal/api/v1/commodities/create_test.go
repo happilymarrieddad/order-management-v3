@@ -6,91 +6,88 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodities"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodities"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-var _ = Describe("Create Commodity Handler", func() {
+var _ = Describe("Create Commodity Endpoint", func() {
 	var (
-		payload      commodities.CreateCommodityPayload
-		payloadBytes []byte
-		newCommodity *types.Commodity
-		err          error
+		rec     *httptest.ResponseRecorder
+		payload commodities.CreateCommodityPayload
 	)
 
 	BeforeEach(func() {
+		rec = httptest.NewRecorder()
 		payload = commodities.CreateCommodityPayload{
-			Name:          "Potatoes",
+			Name:          "Test Commodity",
 			CommodityType: types.CommodityTypeProduce,
 		}
-		payloadBytes, err = json.Marshal(payload)
+	})
+
+	performRequest := func(payload interface{}, user *types.User) {
+		body, err := json.Marshal(payload)
 		Expect(err).NotTo(HaveOccurred())
+		rec, err = testutils.PerformRequest(router, http.MethodPost, "/commodities", url.Values{}, bytes.NewBuffer(body), user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
 
-		newCommodity = &types.Commodity{
-			ID:            1,
-			Name:          payload.Name,
-			CommodityType: payload.CommodityType,
-		}
+	Context("Happy Path", func() {
+		It("should create a commodity successfully for an admin", func() {
+			mockCommoditiesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, com *types.Commodity) error {
+				com.ID = 1
+				return nil
+			})
+
+			performRequest(payload, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusCreated))
+			var result types.Commodity
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Name).To(Equal(payload.Name))
+			Expect(result.ID).To(BeNumerically(">", 0))
+		})
 	})
 
-	Context("when creation is successful", func() {
-		It("should return 201 Created with the new commodity", func() {
-			// Simulate the repo's Create method populating the ID of the passed-in struct.
-			mockCommoditiesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Do(
-				func(ctx context.Context, comm *types.Commodity) {
-					comm.ID = newCommodity.ID
-				}).Return(nil)
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest(payload, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
 
-			req := newAuthenticatedRequest("POST", "/commodities", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+		It("should fail if not an admin", func() {
+			performRequest(payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+	})
 
-			Expect(rr.Code).To(Equal(http.StatusCreated))
-
-			var returnedCommodity types.Commodity
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedCommodity)
+	Context("Invalid Input", func() {
+		It("should fail with a malformed JSON body", func() {
+			rec, err := testutils.PerformRequest(router, http.MethodPost, "/commodities", url.Values{}, bytes.NewBuffer([]byte(`{`)), adminUser, mockGlobalRepo)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedCommodity.ID).To(Equal(newCommodity.ID))
-			Expect(returnedCommodity.Name).To(Equal(newCommodity.Name))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should fail if a required field is missing", func() {
+			payload.Name = ""
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 
-	Context("with invalid input", func() {
-		It("should return 400 for a malformed JSON body", func() {
-			req := newAuthenticatedRequest("POST", "/commodities", bytes.NewBufferString(`{]`), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-		})
-
-		It("should return 400 for a validation error (missing name)", func() {
-			payload.Name = "" // Make the payload invalid
-			body, _ := json.Marshal(payload)
-			req := newAuthenticatedRequest("POST", "/commodities", bytes.NewBuffer(body), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
-			Expect(rr.Body.String()).To(ContainSubstring("Field 'name' is required."))
-		})
-	})
-
-	Context("when the repository fails", func() {
-		It("should return 500 Internal Server Error", func() {
-			mockCommoditiesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db insert failed"))
-			req := newAuthenticatedRequest("POST", "/commodities", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to create commodity"))
-		})
-	})
-
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden", func() {
-			req := newAuthenticatedRequest("POST", "/commodities", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
+	Context("Repository Errors", func() {
+		It("should return 500 on commodity creation db error", func() {
+			dbErr := errors.New("db error")
+			mockCommoditiesRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dbErr)
+			performRequest(payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

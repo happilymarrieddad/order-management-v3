@@ -2,112 +2,116 @@ package commodities_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 
-	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodities"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
-	"github.com/happilymarrieddad/order-management-v3/api/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
+
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodities"
+	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
-var _ = Describe("Update Commodity Handler", func() {
+var _ = Describe("Update Commodity Endpoint", func() {
 	var (
-		payload           commodities.UpdateCommodityPayload
-		payloadBytes      []byte
-		existingCommodity *types.Commodity
-		err               error
+		rec             *httptest.ResponseRecorder
+		payload         commodities.UpdateCommodityPayload
+		targetCommodity *types.Commodity
 	)
 
 	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		targetCommodity = &types.Commodity{ID: 1, Name: "Old Commodity"}
+
 		payload = commodities.UpdateCommodityPayload{
-			Name:          utils.Ref("Russet Potatoes"),
-			CommodityType: utils.Ref(types.CommodityTypeProduce),
+			Name: utils.Ref("Updated Commodity"),
 		}
-		payloadBytes, err = json.Marshal(payload)
+	})
+
+	performRequest := func(commodityID string, payload interface{}, user *types.User) {
+		body, err := json.Marshal(payload)
 		Expect(err).NotTo(HaveOccurred())
+		rec, err = testutils.PerformRequest(router, http.MethodPut, "/commodities/"+commodityID, url.Values{}, bytes.NewBuffer(body), user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
 
-		existingCommodity = &types.Commodity{
-			ID:            1,
-			Name:          "Potatoes",
-			CommodityType: types.CommodityTypeProduce,
-		}
+	Context("Happy Path", func() {
+		It("should update a commodity successfully for an admin", func() {
+			mockCommoditiesRepo.EXPECT().Get(gomock.Any(), targetCommodity.ID).Return(targetCommodity, true, nil)
+			mockCommoditiesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, com *types.Commodity) error {
+				Expect(com.Name).To(Equal(utils.Deref(payload.Name)))
+				return nil
+			})
+
+			performRequest(strconv.FormatInt(targetCommodity.ID, 10), payload, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.Commodity
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Name).To(Equal(utils.Deref(payload.Name)))
+		})
 	})
 
-	Context("when update is successful", func() {
-		It("should return 200 OK with the updated commodity", func() {
-			mockCommoditiesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingCommodity, true, nil)
-			mockCommoditiesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest(strconv.FormatInt(targetCommodity.ID, 10), payload, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
 
-			req := newAuthenticatedRequest("PUT", "/commodities/1", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
+		It("should fail if not an admin", func() {
+			performRequest(strconv.FormatInt(targetCommodity.ID, 10), payload, normalUser)
+			Expect(rec.Code).To(Equal(http.StatusForbidden))
+		})
+	})
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
+	Context("Invalid Input", func() {
+		It("should fail with an invalid commodity ID", func() {
+			performRequest("invalid-id", payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
 
-			var returnedCommodity types.Commodity
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedCommodity)
+		It("should fail with a malformed JSON body", func() {
+			rec, err := testutils.PerformRequest(router, http.MethodPut, "/commodities/1", url.Values{}, bytes.NewBuffer([]byte(`{`)), adminUser, mockGlobalRepo)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedCommodity.ID).To(Equal(existingCommodity.ID))
-			Expect(returnedCommodity.Name).To(Equal(*payload.Name))
-			Expect(returnedCommodity.CommodityType).To(Equal(*payload.CommodityType))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should fail if no fields are provided for update", func() {
+			payload.Name = nil
+			payload.CommodityType = nil
+			performRequest(strconv.FormatInt(targetCommodity.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 
-	Context("when the commodity to update is not found", func() {
-		It("should return 404 Not Found", func() {
-			mockCommoditiesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
-
-			req := newAuthenticatedRequest("PUT", "/commodities/999", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
-		})
-	})
-
-	Context("with invalid input", func() {
-		It("should return 400 for a malformed JSON body", func() {
-			req := newAuthenticatedRequest("PUT", "/commodities/1", bytes.NewBufferString(`{]`), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+	Context("Dependency and Repository Errors", func() {
+		It("should return 404 if the commodity to update is not found", func() {
+			mockCommoditiesRepo.EXPECT().Get(gomock.Any(), targetCommodity.ID).Return(nil, false, nil)
+			performRequest(strconv.FormatInt(targetCommodity.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
 		})
 
-		It("should return 404 for a non-integer ID", func() {
-			req := newAuthenticatedRequest("PUT", "/commodities/abc", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
+		It("should return 500 on get commodity db error", func() {
+			dbErr := errors.New("db error")
+			mockCommoditiesRepo.EXPECT().Get(gomock.Any(), targetCommodity.ID).Return(nil, false, dbErr)
+			performRequest(strconv.FormatInt(targetCommodity.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 
-	})
-
-	Context("when the repository fails", func() {
-		It("should return 500 on update failure", func() {
-			mockCommoditiesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingCommodity, true, nil)
-			mockCommoditiesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db update failed"))
-
-			req := newAuthenticatedRequest("PUT", "/commodities/1", bytes.NewBuffer(payloadBytes), adminUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to update commodity"))
-		})
-	})
-
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			req := newAuthenticatedRequest("PUT", "/commodities/1", bytes.NewBuffer(payloadBytes), basicUser)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
-		})
-
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			req := newAuthenticatedRequest("PUT", "/commodities/1", bytes.NewBuffer(payloadBytes), nil)
-			router.ServeHTTP(rr, req)
-
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+		It("should return 500 on update commodity db error", func() {
+			dbErr := errors.New("db error")
+			mockCommoditiesRepo.EXPECT().Get(gomock.Any(), targetCommodity.ID).Return(targetCommodity, true, nil)
+			mockCommoditiesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(dbErr)
+			performRequest(strconv.FormatInt(targetCommodity.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

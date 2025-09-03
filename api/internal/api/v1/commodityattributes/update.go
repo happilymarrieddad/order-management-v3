@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
 // Update handles updating an existing commodity attribute.
@@ -59,10 +60,10 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if payload.Name != nil {
-		ca.Name = *payload.Name
+				ca.Name = utils.Deref(payload.Name)
 	}
 	if payload.CommodityType != nil {
-		ca.CommodityType = *payload.CommodityType
+				ca.CommodityType = utils.Deref(payload.CommodityType)
 	}
 
 	if err := repo.CommodityAttributes().Update(r.Context(), ca); err != nil {

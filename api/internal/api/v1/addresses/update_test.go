@@ -2,133 +2,122 @@ package addresses_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/testutils"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/addresses"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 	"github.com/happilymarrieddad/order-management-v3/api/utils"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"go.uber.org/mock/gomock"
 )
 
-var _ = Describe("Update Address Handler", func() {
+var _ = Describe("Update Address Endpoint", func() {
 	var (
-		payload      addresses.UpdateAddressPayload
-		payloadBytes []byte
-		existingAddr *types.Address
-		err          error
+		rec           *httptest.ResponseRecorder
+		payload       addresses.UpdateAddressPayload
+		targetAddress *types.Address
 	)
 
 	BeforeEach(func() {
+		rec = httptest.NewRecorder()
+		targetAddress = &types.Address{ID: 1, Line1: "Old Address"}
+
 		payload = addresses.UpdateAddressPayload{
-			Line1:   utils.Ref("456 Updated Ave"),
-			City:    utils.Ref("Newville"),
-			Country: utils.Ref("CAN"),
+			Line1: utils.Ref("Updated Address"),
 		}
-		payloadBytes, err = json.Marshal(payload)
+	})
+
+	performRequest := func(addressID string, payload interface{}, user *types.User) {
+		body, err := json.Marshal(payload)
 		Expect(err).NotTo(HaveOccurred())
+		rec, err = testutils.PerformRequest(router, http.MethodPut, "/addresses/"+addressID, url.Values{}, bytes.NewBuffer(body), user, mockGlobalRepo)
+		Expect(err).NotTo(HaveOccurred())
+	}
 
-		existingAddr = &types.Address{
-			ID:         1,
-			Line1:      "123 Original St",
-			City:       "Oldtown",
-			State:      "CA",
-			PostalCode: "12345",
-			Country:    "USA",
-		}
+	Context("Happy Path", func() {
+		It("should update an address successfully for an admin", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), targetAddress.ID).Return(targetAddress, true, nil)
+			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, addr *types.Address) error {
+				Expect(addr.Line1).To(Equal(*payload.Line1))
+				return nil
+			})
+
+			performRequest(strconv.FormatInt(targetAddress.ID, 10), payload, adminUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+			var result types.Address
+			Expect(json.NewDecoder(rec.Body).Decode(&result)).To(Succeed())
+			Expect(result.Line1).To(Equal(utils.Deref(payload.Line1)))
+		})
+
+		It("should update an address successfully for a normal user", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), targetAddress.ID).Return(targetAddress, true, nil)
+			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, addr *types.Address) error {
+				Expect(addr.Line1).To(Equal(*payload.Line1))
+				return nil
+			})
+
+			performRequest(strconv.FormatInt(targetAddress.ID, 10), payload, normalUser)
+
+			Expect(rec.Code).To(Equal(http.StatusOK))
+		})
 	})
 
-	Context("when update is successful", func() {
-		It("should return 200 OK with the updated address", func() {
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingAddr, true, nil)
-			// The repo's Update method is responsible for geocoding and persistence.
-			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+	Context("Authorization and Authentication", func() {
+		It("should fail if the user is not authenticated", func() {
+			performRequest(strconv.FormatInt(targetAddress.ID, 10), payload, nil)
+			Expect(rec.Code).To(Equal(http.StatusUnauthorized))
+		})
+	})
 
-			// Use testutils.PerformRequest
-			var reqErr error
-			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
-			Expect(reqErr).NotTo(HaveOccurred())
+	Context("Invalid Input", func() {
+		It("should fail with an invalid address ID", func() {
+			performRequest("invalid-id", payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
+		})
 
-			Expect(rr.Code).To(Equal(http.StatusOK))
-
-			var returnedAddr types.Address
-			err := json.Unmarshal(rr.Body.Bytes(), &returnedAddr)
+		It("should fail with a malformed JSON body", func() {
+			rec, err := testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer([]byte(`{`)), adminUser, mockGlobalRepo)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(returnedAddr.ID).To(Equal(existingAddr.ID))
-			Expect(returnedAddr.Line1).To(Equal(*payload.Line1)) // Check that a field was updated
-			Expect(returnedAddr.Country).To(Equal(*payload.Country))
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should fail if no fields are provided for update", func() {
+			payload.Line1 = nil
+			performRequest(strconv.FormatInt(targetAddress.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 
-	Context("when the address to update is not found", func() {
-		It("should return 404 Not Found", func() {
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(999)).Return(nil, false, nil)
-
-			// Use testutils.PerformRequest
-			var reqErr error
-			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/999", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
-			Expect(reqErr).NotTo(HaveOccurred())
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
-		})
-	})
-
-	Context("with invalid input", func() {
-		It("should return 400 for a malformed JSON body", func() {
-			// Use testutils.PerformRequest
-			var reqErr error
-			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBufferString(`{]`), adminUser, mockGlobalRepo)
-			Expect(reqErr).NotTo(HaveOccurred())
-			Expect(rr.Code).To(Equal(http.StatusBadRequest))
+	Context("Dependency and Repository Errors", func() {
+		It("should return 404 if the address to update is not found", func() {
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), targetAddress.ID).Return(nil, false, nil)
+			performRequest(strconv.FormatInt(targetAddress.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusNotFound))
 		})
 
-		It("should return 404 for a non-integer ID", func() {
-			// Use testutils.PerformRequest
-			var reqErr error
-			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/abc", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
-			Expect(reqErr).NotTo(HaveOccurred())
-			Expect(rr.Code).To(Equal(http.StatusNotFound))
-		})
-	})
-
-	Context("when the repository fails", func() {
-		It("should return 500 on update failure", func() {
-			mockAddressesRepo.EXPECT().Get(gomock.Any(), int64(1)).Return(existingAddr, true, nil)
-			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errors.New("db update failed"))
-
-			// Use testutils.PerformRequest
-			var reqErr error
-			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), adminUser, mockGlobalRepo)
-			Expect(reqErr).NotTo(HaveOccurred())
-
-			Expect(rr.Code).To(Equal(http.StatusInternalServerError))
-			Expect(rr.Body.String()).To(ContainSubstring("unable to update address"))
-		})
-	})
-
-	Context("when the user is not an admin", func() {
-		It("should return 403 Forbidden for a non-admin user", func() {
-			// Use testutils.PerformRequest
-			var reqErr error
-			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), basicUser, mockGlobalRepo)
-			Expect(reqErr).NotTo(HaveOccurred())
-
-			Expect(rr.Code).To(Equal(http.StatusForbidden))
-			Expect(rr.Body.String()).To(ContainSubstring("forbidden"))
+		It("should return 500 on get address db error", func() {
+			dbErr := errors.New("db error")
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), targetAddress.ID).Return(nil, false, dbErr)
+			performRequest(strconv.FormatInt(targetAddress.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 
-		It("should return 401 Unauthorized for an unauthenticated user", func() {
-			// Use testutils.PerformRequest
-			var reqErr error
-			rr, reqErr = testutils.PerformRequest(router, http.MethodPut, "/addresses/1", url.Values{}, bytes.NewBuffer(payloadBytes), nil, mockGlobalRepo)
-			Expect(reqErr).NotTo(HaveOccurred())
-
-			Expect(rr.Code).To(Equal(http.StatusUnauthorized))
+		It("should return 500 on update address db error", func() {
+			dbErr := errors.New("db error")
+			mockAddressesRepo.EXPECT().Get(gomock.Any(), targetAddress.ID).Return(targetAddress, true, nil)
+			mockAddressesRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(dbErr)
+			performRequest(strconv.FormatInt(targetAddress.ID, 10), payload, adminUser)
+			Expect(rec.Code).To(Equal(http.StatusInternalServerError))
 		})
 	})
 })

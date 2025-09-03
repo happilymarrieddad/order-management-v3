@@ -10,6 +10,6 @@ type CreateCommodityPayload struct {
 
 // UpdateCommodityPayload defines the structure for updating a commodity.
 type UpdateCommodityPayload struct {
-	Name          *string              `json:"name,omitempty"`
-	CommodityType *types.CommodityType `json:"commodity_type,omitempty"`
+	Name          *string              `json:"name,omitempty" validate:"required_without_all=CommodityType"`
+	CommodityType *types.CommodityType `json:"commodity_type,omitempty" validate:"required_without_all=Name"`
 }

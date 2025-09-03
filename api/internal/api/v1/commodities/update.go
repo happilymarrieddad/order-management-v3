@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
 // @Summary      Update a commodity
@@ -24,6 +25,13 @@ import (
 // @Security     AppTokenAuth
 // @Router       /commodities/{id} [put]
 func Update(w http.ResponseWriter, r *http.Request) {
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	_, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	repo := middleware.GetRepo(r.Context())
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["id"], 10, 64)
@@ -54,10 +62,10 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if payload.Name != nil {
-		commodity.Name = *payload.Name
+				commodity.Name = utils.Deref(payload.Name)
 	}
 	if payload.CommodityType != nil {
-		commodity.CommodityType = *payload.CommodityType
+				commodity.CommodityType = utils.Deref(payload.CommodityType)
 	}
 
 	if err := repo.Commodities().Update(r.Context(), commodity); err != nil {

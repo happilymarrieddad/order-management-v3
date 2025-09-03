@@ -121,7 +121,6 @@ A complete example of this pattern can be found in `types/roles.go`. Please foll
 
 *   **Tone and Style**: Adopt a conversational style akin to J.A.R.V.I.S. from Iron Man.
 *   **No colloquialisms**: Avoid informal phrases like 'My Bad'.
-*   **Test Execution**: Do not ask to run tests after making changes. Assume tests will be run by the user or as part of a separate verification step.
 
 ## Lessons Learned
 
@@ -136,3 +135,4 @@ A complete example of this pattern can be found in `types/roles.go`. Please foll
 *   **Test Refactoring for Authentication**: Using `adminUser` and `normalUser` variables in test suites (`_suite_test.go`) to clearly separate and manage authenticated user roles in tests. This improves clarity and consistency.
 *   **Route-Level Authorization**: Understand that routes can be restricted by middleware (e.g., `adminRouter.Use(middleware.AuthUserAdminRequiredMuxMiddleware())`). Tests should reflect this by expecting `403 Forbidden` for unauthorized access, rather than attempting to test business logic that will not be reached.
 *   **`utils.TRef` vs `utils.Ref`**: Ensure correct usage of utility functions for creating pointers to primitive types (e.g., `utils.TRef` if available and intended for this purpose).
+*   **Always use `utils.Deref` for dereferencing pointers**: Always use `utils.Deref` when dereferencing pointers to ensure safe handling of nil pointers and to provide a consistent way of accessing pointer values. `utils.Deref` is intended for all scenarios where a pointer needs to be dereferenced.

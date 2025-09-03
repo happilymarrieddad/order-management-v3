@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -17,7 +16,7 @@ import (
 
 var _ = Describe("Login Handler", func() {
 	var (
-		rr             *httptest.ResponseRecorder
+		rr *httptest.ResponseRecorder
 	)
 
 	BeforeEach(func() {

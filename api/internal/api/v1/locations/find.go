@@ -3,11 +3,11 @@ package locations
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
 // @Summary      Find locations
@@ -26,27 +26,25 @@ import (
 func Find(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
 
-	var opts repos.LocationFindOpts
-	query := r.URL.Query()
-
-	// Parse query parameters
-	if limitStr := query.Get("limit"); limitStr != "" {
-		if limit, err := strconv.ParseInt(limitStr, 10, 64); err == nil {
-			opts.Limit = int(limit)
-		}
+	limit, err := utils.GetQueryInt(r, "limit")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid limit format")
+		return
 	}
-	if opts.Limit <= 0 {
-		opts.Limit = 10
+	if limit == 0 {
+		limit = 10
 	}
 
-	if offsetStr := query.Get("offset"); offsetStr != "" {
-		if offset, err := strconv.ParseInt(offsetStr, 10, 64); err == nil {
-			opts.Offset = int(offset)
-		}
+	offset, err := utils.GetQueryInt(r, "offset")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid offset format")
+		return
 	}
 
-	if name := query.Get("name"); name != "" {
-		opts.Names = append(opts.Names, name)
+	opts := repos.LocationFindOpts{
+		Limit:  limit,
+		Offset: offset,
+		Names:  r.URL.Query()["name"],
 	}
 
 	// Get the authenticated user from the context (cached by AuthMiddleware).

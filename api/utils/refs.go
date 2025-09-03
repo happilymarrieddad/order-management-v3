@@ -4,9 +4,9 @@ func Ref[T any](v T) *T {
 	return &v
 }
 
-func Deref[T any](v *T, def T) T {
+func Deref[T any](v *T) T {
 	if v == nil {
-		return def
+		v = new(T)
 	}
 	return *v
 }

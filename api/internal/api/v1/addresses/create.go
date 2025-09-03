@@ -10,6 +10,13 @@ import (
 
 // Create handles the creation of a new address.
 func Create(w http.ResponseWriter, r *http.Request) {
+	// Get the authenticated user from the context (cached by AuthMiddleware).
+	_, found := middleware.GetAuthUserFromContext(r.Context())
+	if !found { // Should be caught by middleware, but good practice to check
+		middleware.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	var payload CreateAddressPayload
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {

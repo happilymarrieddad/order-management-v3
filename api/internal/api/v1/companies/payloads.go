@@ -7,7 +7,8 @@ type CreateCompanyPayload struct {
 }
 
 // UpdateCompanyPayload defines the structure for updating a company.
+// At least one field must be provided.
 type UpdateCompanyPayload struct {
-	Name      *string `json:"name,omitempty"`
-	AddressID *int64  `json:"address_id,omitempty"`
+	Name      *string `json:"name,omitempty" validate:"required_without_all=AddressID"`
+	AddressID *int64  `json:"address_id,omitempty" validate:"required_without_all=Name"`
 }

@@ -3,11 +3,11 @@ package users
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
 	"github.com/happilymarrieddad/order-management-v3/api/types"
+	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
 // @Summary      Find users
@@ -30,51 +30,41 @@ import (
 func Find(w http.ResponseWriter, r *http.Request) {
 	repo := middleware.GetRepo(r.Context())
 
-	var opts repos.UserFindOpts
-	query := r.URL.Query()
-
-	// Parse query parameters
-	if limitStr := query.Get("limit"); limitStr != "" {
-		if limit, err := strconv.ParseInt(limitStr, 10, 64); err == nil {
-			opts.Limit = int(limit)
-		}
+	limit, err := utils.GetQueryInt(r, "limit")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid limit format")
+		return
 	}
-	if opts.Limit <= 0 {
-		opts.Limit = 10
+	if limit == 0 {
+		limit = 10
 	}
 
-	if offsetStr := query.Get("offset"); offsetStr != "" {
-		if offset, err := strconv.ParseInt(offsetStr, 10, 64); err == nil {
-			opts.Offset = int(offset)
-		}
+	offset, err := utils.GetQueryInt(r, "offset")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid offset format")
+		return
 	}
 
-	if companyIDStr := query.Get("company_id"); companyIDStr != "" {
-		if companyID, err := strconv.ParseInt(companyIDStr, 10, 64); err == nil {
-			opts.CompanyID = companyID
-		}
+	companyID, err := utils.GetQueryInt64(r, "company_id")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid company_id format")
+		return
 	}
 
-	// Handle multiple IDs
-	for _, idStr := range query["id"] {
-		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
-			opts.IDs = append(opts.IDs, id)
-		}
+	ids, err := utils.GetQueryInt64Slice(r, "id")
+	if err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid id format")
+		return
 	}
 
-	// Handle multiple emails
-	for _, email := range query["email"] {
-		opts.Emails = append(opts.Emails, email)
-	}
-
-	// Handle multiple first names
-	for _, firstName := range query["first_name"] {
-		opts.FirstNames = append(opts.FirstNames, firstName)
-	}
-
-	// Handle multiple last names
-	for _, lastName := range query["last_name"] {
-		opts.LastNames = append(opts.LastNames, lastName)
+	opts := repos.UserFindOpts{
+		Limit:      limit,
+		Offset:     offset,
+		CompanyID:  companyID,
+		IDs:        ids,
+		Emails:     r.URL.Query()["email"],
+		FirstNames: r.URL.Query()["first_name"],
+		LastNames:  r.URL.Query()["last_name"],
 	}
 
 	// Get the authenticated user from the context (cached by AuthMiddleware).
