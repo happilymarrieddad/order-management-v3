@@ -31,14 +31,14 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	commodity := &types.Commodity{
 		Name:          payload.Name,
 		CommodityType: payload.CommodityType,
 	}
 
-	if err := repo.Commodities().Create(r.Context(), commodity); err != nil {
+	if err := gr.Commodities().Create(r.Context(), commodity); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to create commodity")
 		return
 	}

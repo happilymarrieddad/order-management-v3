@@ -10,8 +10,22 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
+// @Summary      Find companies
+// @Description  Finds companies with optional filters and pagination using query parameters.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Param        id     query    []int  false  "Company IDs"
+// @Param        name   query    []string false "Company names"
+// @Param        limit  query    int    false  "Limit"
+// @Param        offset query    int    false  "Offset"
+// @Success      200    {object}  object{data=[]types.Company,total=int} "A list of companies"
+// @Failure      400    {object}  middleware.ErrorResponse "Bad Request"
+// @Failure      500    {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /companies/find [get]
 func Find(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	limit, err := utils.GetQueryInt(r, "limit")
 	if err != nil {
@@ -41,7 +55,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 		Names:  r.URL.Query()["name"],
 	}
 
-	companies, count, err := repo.Companies().Find(r.Context(), opts)
+	companies, count, err := gr.Companies().Find(r.Context(), opts)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to find companies")
 		return

@@ -9,6 +9,18 @@ import (
 )
 
 // Create handles the creation of a new address.
+// @Summary      Create a new address
+// @Description  Creates a new address.
+// @Tags         addresses
+// @Accept       json
+// @Produce      json
+// @Param        address body      CreateAddressPayload    true  "Address Creation Payload"
+// @Success      201      {object}  types.Address           "Successfully created address"
+// @Failure      400      {object}  middleware.ErrorResponse "Bad Request - Invalid input or validation failed"
+// @Failure      401      {object}  middleware.ErrorResponse "Unauthorized"
+// @Failure      500      {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /addresses [post]
 func Create(w http.ResponseWriter, r *http.Request) {
 	// Get the authenticated user from the context (cached by AuthMiddleware).
 	_, found := middleware.GetAuthUserFromContext(r.Context())
@@ -29,7 +41,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	address := &types.Address{
 		Line1:      payload.Line1,
@@ -40,7 +52,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		Country:    payload.Country,
 	}
 
-	newAddress, err := repo.Addresses().Create(r.Context(), address)
+	newAddress, err := gr.Addresses().Create(r.Context(), address)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to create address")
 		return

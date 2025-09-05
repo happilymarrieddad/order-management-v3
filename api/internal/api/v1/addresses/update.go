@@ -32,7 +32,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["id"], 10, 64)
 	if err != nil {
@@ -53,7 +53,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// First, get the existing address to ensure it exists
-	address, found, err := repo.Addresses().Get(r.Context(), id)
+	address, found, err := gr.Addresses().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get address")
 		return
@@ -83,7 +83,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		address.Country = utils.Deref(payload.Country)
 	}
 
-	if err := repo.Addresses().Update(r.Context(), address); err != nil {
+	if err := gr.Addresses().Update(r.Context(), address); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update address")
 		return
 	}

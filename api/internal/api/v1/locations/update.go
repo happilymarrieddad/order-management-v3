@@ -10,8 +10,23 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
+// @Summary      Update a location
+// @Description  Updates an existing location's details.
+// @Tags         locations
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                      true  "Location ID"
+// @Param        location body      UpdateLocationPayload    true  "Location Update Payload"
+// @Success      200      {object}  types.Location           "Successfully updated location"
+// @Failure      400      {object}  middleware.ErrorResponse "Bad Request - Invalid input or ID"
+// @Failure      401      {object}  middleware.ErrorResponse "Unauthorized"
+// @Failure      403      {object}  middleware.ErrorResponse "Forbidden"
+// @Failure      404      {object}  middleware.ErrorResponse "Not Found - Location not found"
+// @Failure      500      {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /locations/{id} [put]
 func Update(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
@@ -43,7 +58,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		companyID = authUser.CompanyID
 	}
 
-	loc, found, err := repo.Locations().Get(r.Context(), companyID, id)
+	loc, found, err := gr.Locations().Get(r.Context(), companyID, id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get location")
 		return
@@ -57,7 +72,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 
 	if payload.AddressID != nil {
 		// Validate new address if provided
-		_, found, err := repo.Addresses().Get(r.Context(), *payload.AddressID)
+		_, found, err := gr.Addresses().Get(r.Context(), *payload.AddressID)
 		if err != nil {
 			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 			return
@@ -73,7 +88,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		loc.Name = *payload.Name
 	}
 
-	if err := repo.Locations().Update(r.Context(), loc); err != nil {
+	if err := gr.Locations().Update(r.Context(), loc); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update location")
 		return
 	}

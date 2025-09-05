@@ -8,8 +8,21 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
+// @Summary      Create a new location
+// @Description  Creates a new location for a company.
+// @Tags         locations
+// @Accept       json
+// @Produce      json
+// @Param        location body      CreateLocationPayload    true  "Location Creation Payload"
+// @Success      201      {object}  types.Location           "Successfully created location"
+// @Failure      400      {object}  middleware.ErrorResponse "Bad Request - Invalid input or validation failed"
+// @Failure      401      {object}  middleware.ErrorResponse "Unauthorized"
+// @Failure      403      {object}  middleware.ErrorResponse "Forbidden"
+// @Failure      500      {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /locations [post]
 func Create(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	var payload CreateLocationPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -34,7 +47,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate dependencies
-	_, found, err := repo.Companies().Get(r.Context(), payload.CompanyID)
+	_, found, err := gr.Companies().Get(r.Context(), payload.CompanyID)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate company")
 		return
@@ -44,7 +57,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, found, err = repo.Addresses().Get(r.Context(), payload.AddressID)
+	_, found, err = gr.Addresses().Get(r.Context(), payload.AddressID)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 		return
@@ -60,7 +73,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		AddressID: payload.AddressID,
 	}
 
-	if err := repo.Locations().Create(r.Context(), loc); err != nil {
+	if err := gr.Locations().Create(r.Context(), loc); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to create location")
 		return
 	}

@@ -9,8 +9,20 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
+// @Summary      Delete a company
+// @Description  Deletes a company by its ID.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "Company ID"
+// @Success      204  "No Content"
+// @Failure      400  {object}  middleware.ErrorResponse "Invalid Company ID"
+// @Failure      404  {object}  middleware.ErrorResponse "Company not found"
+// @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /companies/{id} [delete]
 func Delete(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
@@ -18,7 +30,7 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := repo.Companies().Delete(r.Context(), id); err != nil {
+	if err := gr.Companies().Delete(r.Context(), id); err != nil {
 		if types.IsNotFoundError(err) {
 			middleware.WriteError(w, http.StatusNotFound, "company not found")
 		} else {

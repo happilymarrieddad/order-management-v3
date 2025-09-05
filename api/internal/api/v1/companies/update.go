@@ -11,9 +11,20 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/utils"
 )
 
-// Update handles updating an existing company.
+// @Summary      Update a company
+// @Description  Updates an existing company's details.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Param        id      path      int                      true  "Company ID"
+// @Param        company body      UpdateCompanyPayload     true  "Company Update Payload"
+// @Success      200     {object}  types.Company            "Successfully updated company"
+// @Failure      400     {object}  middleware.ErrorResponse "Bad Request - Invalid input or ID"
+// @Failure      404     {object}  middleware.ErrorResponse "Not Found - Company not found"
+// @Security     AppTokenAuth
+// @Router       /companies/{id} [put]
 func Update(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
@@ -32,7 +43,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	company, found, err := repo.Companies().Get(r.Context(), id)
+	company, found, err := gr.Companies().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get company")
 		return
@@ -51,7 +62,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 
 	if payload.AddressID != nil {
 		// Validate the new address exists before updating the company
-		_, found, err := repo.Addresses().Get(r.Context(), utils.Deref(payload.AddressID))
+		_, found, err := gr.Addresses().Get(r.Context(), utils.Deref(payload.AddressID))
 		if err != nil {
 			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 			return
@@ -63,7 +74,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		company.AddressID = utils.Deref(payload.AddressID)
 	}
 
-	if err := repo.Companies().Update(r.Context(), company); err != nil {
+	if err := gr.Companies().Update(r.Context(), company); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update company")
 		return
 	}

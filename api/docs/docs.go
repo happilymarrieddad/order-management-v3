@@ -15,14 +15,71 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/addresses/find": {
+        "/addresses": {
             "post": {
                 "security": [
                     {
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Finds addresses with optional filters and pagination by sending a JSON body.",
+                "description": "Creates a new address.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "addresses"
+                ],
+                "summary": "Create a new address",
+                "parameters": [
+                    {
+                        "description": "Address Creation Payload",
+                        "name": "address",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/addresses.CreateAddressPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successfully created address",
+                        "schema": {
+                            "$ref": "#/definitions/types.Address"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request - Invalid input or validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/addresses/find": {
+            "get": {
+                "security": [
+                    {
+                        "AppTokenAuth": []
+                    }
+                ],
+                "description": "Finds addresses with optional filters and pagination using query parameters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -35,35 +92,44 @@ const docTemplate = `{
                 "summary": "Find addresses",
                 "parameters": [
                     {
-                        "description": "Find options",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/repos.AddressFindOpts"
-                        }
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Address IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "A list of addresses",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/types.FindResult"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/types.Address"
-                                            }
-                                        }
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/types.Address"
                                     }
+                                },
+                                "total": {
+                                    "type": "integer"
                                 }
-                            ]
+                            }
                         }
                     },
                     "400": {
@@ -85,17 +151,20 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "AppTokenAuth": []
                     }
                 ],
-                "description": "Retrieves the details of a single address by its unique ID.",
+                "description": "Gets an address by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "addresses"
                 ],
-                "summary": "Get an address by ID",
+                "summary": "Get an address",
                 "parameters": [
                     {
                         "type": "integer",
@@ -107,19 +176,31 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Successfully retrieved address",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/types.Address"
                         }
                     },
                     "400": {
-                        "description": "Bad Request - Invalid ID",
+                        "description": "Invalid Address ID",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found - Address not found",
+                        "description": "Address not found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -287,13 +368,13 @@ const docTemplate = `{
             }
         },
         "/commodities/find": {
-            "post": {
+            "get": {
                 "security": [
                     {
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Finds commodities with optional filters and pagination by sending a JSON body.",
+                "description": "Finds commodities with optional filters and pagination using query parameters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -306,35 +387,60 @@ const docTemplate = `{
                 "summary": "Find commodities",
                 "parameters": [
                     {
-                        "description": "Find options",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/repos.FindCommoditiesOpts"
-                        }
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Commodity IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Commodity names",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Commodity type",
+                        "name": "commodity_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "A list of commodities",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/types.FindResult"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/types.Commodity"
-                                            }
-                                        }
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/types.Commodity"
                                     }
+                                },
+                                "total": {
+                                    "type": "integer"
                                 }
-                            ]
+                            }
                         }
                     },
                     "400": {
@@ -531,13 +637,13 @@ const docTemplate = `{
             }
         },
         "/commodity-attributes/find": {
-            "post": {
+            "get": {
                 "security": [
                     {
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Finds commodity attributes with optional filters and pagination by sending a JSON body.",
+                "description": "Finds commodity attributes with optional filters and pagination by sending query parameters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -550,35 +656,54 @@ const docTemplate = `{
                 "summary": "Find commodity attributes",
                 "parameters": [
                     {
-                        "description": "Find options",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/repos.CommodityAttributeFindOpts"
-                        }
+                        "type": "integer",
+                        "description": "Number of records to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of records to skip",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by Commodity Attribute IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by Commodity Types (e.g., 'grain', 'fruit')",
+                        "name": "commodity_types",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "A list of commodity attributes",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/types.FindResult"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/types.CommodityAttribute"
-                                            }
-                                        }
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/types.CommodityAttribute"
                                     }
+                                },
+                                "total": {
+                                    "type": "integer"
                                 }
-                            ]
+                            }
                         }
                     },
                     "400": {
@@ -598,7 +723,12 @@ const docTemplate = `{
         },
         "/commodity-attributes/{id}": {
             "get": {
-                "description": "Retrieves a single commodity attribute by its ID.",
+                "security": [
+                    {
+                        "AppTokenAuth": []
+                    }
+                ],
+                "description": "Gets a commodity attribute by its ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -608,7 +738,7 @@ const docTemplate = `{
                 "tags": [
                     "commodity-attributes"
                 ],
-                "summary": "Get a commodity attribute by ID",
+                "summary": "Get a commodity attribute",
                 "parameters": [
                     {
                         "type": "integer",
@@ -620,31 +750,25 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Successfully retrieved commodity attribute",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/types.CommodityAttribute"
                         }
                     },
                     "400": {
-                        "description": "Bad Request - Invalid ID",
+                        "description": "Invalid Commodity Attribute ID",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized - Missing or invalid token",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden - Insufficient permissions",
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found - Commodity attribute not found",
+                        "description": "Commodity Attribute not found",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -765,60 +889,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/companies": {
-            "post": {
-                "description": "Creates a new company with the provided details.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "companies"
-                ],
-                "summary": "Create a new company",
-                "parameters": [
-                    {
-                        "description": "Company Creation Payload",
-                        "name": "company",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/companies.CreateCompanyPayload"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Successfully created company",
-                        "schema": {
-                            "$ref": "#/definitions/types.Company"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request - Invalid input",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/companies/find": {
-            "post": {
+            "get": {
                 "security": [
                     {
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Finds companies with optional filters and pagination by sending a JSON body.",
+                "description": "Finds companies with optional filters and pagination using query parameters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -831,35 +909,54 @@ const docTemplate = `{
                 "summary": "Find companies",
                 "parameters": [
                     {
-                        "description": "Find options",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/repos.CompanyFindOpts"
-                        }
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Company IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Company names",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "A list of companies",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/types.FindResult"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/types.Company"
-                                            }
-                                        }
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/types.Company"
                                     }
+                                },
+                                "total": {
+                                    "type": "integer"
                                 }
-                            ]
+                            }
                         }
                     },
                     "400": {
@@ -881,17 +978,20 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "AppTokenAuth": []
                     }
                 ],
-                "description": "Retrieves the details of a single company by its unique ID.",
+                "description": "Gets a company by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "companies"
                 ],
-                "summary": "Get a company by ID",
+                "summary": "Get a company",
                 "parameters": [
                     {
                         "type": "integer",
@@ -903,19 +1003,37 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Successfully retrieved company",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/types.Company"
                         }
                     },
                     "400": {
-                        "description": "Bad Request - Invalid ID",
+                        "description": "Invalid Company ID",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found - Company not found",
+                        "description": "Company not found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -925,10 +1043,10 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "AppTokenAuth": []
                     }
                 ],
-                "description": "Updates an existing company with new details.",
+                "description": "Updates an existing company's details.",
                 "consumes": [
                     "application/json"
                 ],
@@ -981,10 +1099,16 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "AppTokenAuth": []
                     }
                 ],
                 "description": "Deletes a company by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "companies"
                 ],
@@ -1003,7 +1127,13 @@ const docTemplate = `{
                         "description": "No Content"
                     },
                     "400": {
-                        "description": "Bad Request - Invalid ID",
+                        "description": "Invalid Company ID",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Company not found",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -1024,7 +1154,7 @@ const docTemplate = `{
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Creates a new location for a company. The location name must be unique per company.",
+                "description": "Creates a new location for a company.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1054,7 +1184,19 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request - Invalid input, duplicate name, or dependency not found",
+                        "description": "Bad Request - Invalid input or validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -1069,13 +1211,13 @@ const docTemplate = `{
             }
         },
         "/locations/find": {
-            "post": {
+            "get": {
                 "security": [
                     {
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Finds locations with optional filters and pagination by sending a JSON body.",
+                "description": "Finds locations with optional filters and pagination by sending query parameters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1088,35 +1230,40 @@ const docTemplate = `{
                 "summary": "Find locations",
                 "parameters": [
                     {
-                        "description": "Find options",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/repos.LocationFindOpts"
-                        }
+                        "type": "integer",
+                        "description": "Number of records to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of records to skip",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Location name filter",
+                        "name": "name",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "A list of locations",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/types.FindResult"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/types.Location"
-                                            }
-                                        }
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/types.Location"
                                     }
+                                },
+                                "total": {
+                                    "type": "integer"
                                 }
-                            ]
+                            }
                         }
                     },
                     "400": {
@@ -1141,14 +1288,17 @@ const docTemplate = `{
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Retrieves the details of a single location, including its company and address.",
+                "description": "Gets a location by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "locations"
                 ],
-                "summary": "Get a location by ID",
+                "summary": "Get a location",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1160,19 +1310,31 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Successfully retrieved location",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/types.Location"
                         }
                     },
                     "400": {
-                        "description": "Bad Request - Invalid ID",
+                        "description": "Invalid Location ID",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Not Found - Location not found",
+                        "description": "Location not found",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -1191,7 +1353,7 @@ const docTemplate = `{
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Updates an existing location's name and/or address.",
+                "description": "Updates an existing location's details.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1233,8 +1395,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
                     "404": {
-                        "description": "Not Found - Location or new address not found",
+                        "description": "Not Found - Location not found",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -1250,10 +1424,16 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "AppTokenAuth": []
                     }
                 ],
                 "description": "Deletes a location by its ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "locations"
                 ],
@@ -1272,7 +1452,25 @@ const docTemplate = `{
                         "description": "No Content"
                     },
                     "400": {
-                        "description": "Bad Request - Invalid ID",
+                        "description": "Invalid Location ID",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Location not found",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -1350,60 +1548,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/users": {
-            "post": {
-                "description": "Creates a new user account with the provided details.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "users"
-                ],
-                "summary": "Create a new user",
-                "parameters": [
-                    {
-                        "description": "User Creation Payload",
-                        "name": "user",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/users.CreateUserPayload"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Successfully created user",
-                        "schema": {
-                            "$ref": "#/definitions/types.User"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request - Invalid input or user already exists",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/users/find": {
-            "post": {
+            "get": {
                 "security": [
                     {
                         "AppTokenAuth": []
                     }
                 ],
-                "description": "Finds users with optional filters and pagination by sending a JSON body.",
+                "description": "Finds users with optional filters and pagination by sending query parameters.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1416,35 +1568,80 @@ const docTemplate = `{
                 "summary": "Find users",
                 "parameters": [
                     {
-                        "description": "Find options",
-                        "name": "opts",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/repos.UserFindOpts"
-                        }
+                        "type": "integer",
+                        "description": "Number of records to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of records to skip",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by Company ID",
+                        "name": "company_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by User IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by Emails",
+                        "name": "email",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by First Names",
+                        "name": "first_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by Last Names",
+                        "name": "last_name",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "A list of users",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/types.FindResult"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/types.User"
-                                            }
-                                        }
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/types.User"
                                     }
+                                },
+                                "total": {
+                                    "type": "integer"
                                 }
-                            ]
+                            }
                         }
                     },
                     "400": {
@@ -1463,125 +1660,14 @@ const docTemplate = `{
             }
         },
         "/users/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "AppTokenAuth": []
-                    }
-                ],
-                "description": "Retrieves the details of a single user by their unique ID.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "users"
-                ],
-                "summary": "Get a user by ID",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully retrieved user",
-                        "schema": {
-                            "$ref": "#/definitions/types.User"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request - Invalid ID",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found - User not found",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Updates an existing user's details. This does not update the password.",
+            "delete": {
+                "description": "Deletes a user by their ID. A user can delete themselves, or an admin can delete any user within the same company.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
                     "application/json"
                 ],
-                "tags": [
-                    "users"
-                ],
-                "summary": "Update a user",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "User Update Payload",
-                        "name": "user",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/users.UpdateUserPayload"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully updated user",
-                        "schema": {
-                            "$ref": "#/definitions/types.User"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request - Invalid input or ID",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found - User not found",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/middleware.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Deletes a user by their ID.",
                 "tags": [
                     "users"
                 ],
@@ -1600,7 +1686,81 @@ const docTemplate = `{
                         "description": "No Content"
                     },
                     "400": {
-                        "description": "Bad Request - Invalid ID",
+                        "description": "Invalid User ID",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}/company": {
+            "put": {
+                "description": "Moves a user to a new company. This is an admin-only endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update a user's company (Admin only)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Company Payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/users.UpdateUserCompanyPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid request body or Company not found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
                         "schema": {
                             "$ref": "#/definitions/middleware.ErrorResponse"
                         }
@@ -1616,34 +1776,56 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "addresses.UpdateAddressPayload": {
+        "addresses.CreateAddressPayload": {
             "type": "object",
             "required": [
                 "city",
+                "country",
                 "line_1",
                 "postal_code",
                 "state"
             ],
             "properties": {
                 "city": {
-                    "type": "string",
-                    "example": "Newville"
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
                 },
                 "line_1": {
-                    "type": "string",
-                    "example": "456 Market St"
+                    "type": "string"
                 },
                 "line_2": {
-                    "type": "string",
-                    "example": "Suite 200"
+                    "type": "string"
                 },
                 "postal_code": {
-                    "type": "string",
-                    "example": "54321"
+                    "type": "string"
                 },
                 "state": {
-                    "type": "string",
-                    "example": "NY"
+                    "type": "string"
+                }
+            }
+        },
+        "addresses.UpdateAddressPayload": {
+            "type": "object",
+            "properties": {
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "line_1": {
+                    "type": "string"
+                },
+                "line_2": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
                 }
             }
         },
@@ -1696,22 +1878,12 @@ const docTemplate = `{
         },
         "commodities.UpdateCommodityPayload": {
             "type": "object",
-            "required": [
-                "commodity_type",
-                "name"
-            ],
             "properties": {
                 "commodity_type": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/types.CommodityType"
-                        }
-                    ],
-                    "example": 1
+                    "$ref": "#/definitions/types.CommodityType"
                 },
                 "name": {
-                    "type": "string",
-                    "example": "Orange"
+                    "type": "string"
                 }
             }
         },
@@ -1741,59 +1913,23 @@ const docTemplate = `{
         },
         "commodityattributes.UpdateCommodityAttributePayload": {
             "type": "object",
-            "required": [
-                "commodityType",
-                "name"
-            ],
             "properties": {
                 "commodityType": {
-                    "enum": [
-                        1
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/types.CommodityType"
-                        }
-                    ]
+                    "$ref": "#/definitions/types.CommodityType"
                 },
                 "name": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 2
-                }
-            }
-        },
-        "companies.CreateCompanyPayload": {
-            "type": "object",
-            "required": [
-                "address_id",
-                "name"
-            ],
-            "properties": {
-                "address_id": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "name": {
-                    "type": "string",
-                    "example": "Awesome Inc."
+                    "type": "string"
                 }
             }
         },
         "companies.UpdateCompanyPayload": {
             "type": "object",
-            "required": [
-                "address_id",
-                "name"
-            ],
             "properties": {
                 "address_id": {
-                    "type": "integer",
-                    "example": 2
+                    "type": "integer"
                 },
                 "name": {
-                    "type": "string",
-                    "example": "Even Better Inc."
+                    "type": "string"
                 }
             }
         },
@@ -1806,33 +1942,24 @@ const docTemplate = `{
             ],
             "properties": {
                 "address_id": {
-                    "type": "integer",
-                    "example": 1
+                    "type": "integer"
                 },
                 "company_id": {
-                    "type": "integer",
-                    "example": 1
+                    "type": "integer"
                 },
                 "name": {
-                    "type": "string",
-                    "example": "Main Warehouse"
+                    "type": "string"
                 }
             }
         },
         "locations.UpdateLocationPayload": {
             "type": "object",
-            "required": [
-                "address_id",
-                "name"
-            ],
             "properties": {
                 "address_id": {
-                    "type": "integer",
-                    "example": 2
+                    "type": "integer"
                 },
                 "name": {
-                    "type": "string",
-                    "example": "Downtown Office"
+                    "type": "string"
                 }
             }
         },
@@ -1842,146 +1969,6 @@ const docTemplate = `{
                 "error": {
                     "type": "string",
                     "example": "a description of the error"
-                }
-            }
-        },
-        "repos.AddressFindOpts": {
-            "type": "object",
-            "properties": {
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
-                }
-            }
-        },
-        "repos.CommodityAttributeFindOpts": {
-            "type": "object",
-            "properties": {
-                "commodityTypes": {
-                    "description": "For IN query",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.CommodityType"
-                    }
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
-                }
-            }
-        },
-        "repos.CompanyFindOpts": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
-                }
-            }
-        },
-        "repos.FindCommoditiesOpts": {
-            "type": "object",
-            "properties": {
-                "commodityType": {
-                    "$ref": "#/definitions/types.CommodityType"
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "offset": {
-                    "type": "integer"
-                }
-            }
-        },
-        "repos.LocationFindOpts": {
-            "type": "object",
-            "properties": {
-                "addressIDs": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "companyIDs": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "names": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "offset": {
-                    "type": "integer"
-                }
-            }
-        },
-        "repos.UserFindOpts": {
-            "type": "object",
-            "properties": {
-                "emails": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
                 }
             }
         },
@@ -2123,15 +2110,6 @@ const docTemplate = `{
                 }
             }
         },
-        "types.FindResult": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
         "types.Location": {
             "type": "object",
             "properties": {
@@ -2233,68 +2211,14 @@ const docTemplate = `{
                 }
             }
         },
-        "users.CreateUserPayload": {
+        "users.UpdateUserCompanyPayload": {
             "type": "object",
             "required": [
-                "address_id",
-                "company_id",
-                "confirm_password",
-                "email",
-                "first_name",
-                "last_name",
-                "password"
+                "company_id"
             ],
             "properties": {
-                "address_id": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "company_id": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "confirm_password": {
-                    "type": "string",
-                    "example": "password123"
-                },
-                "email": {
-                    "type": "string",
-                    "example": "test@example.com"
-                },
-                "first_name": {
-                    "type": "string",
-                    "example": "John"
-                },
-                "last_name": {
-                    "type": "string",
-                    "example": "Doe"
-                },
-                "password": {
-                    "type": "string",
-                    "minLength": 8,
-                    "example": "password123"
-                }
-            }
-        },
-        "users.UpdateUserPayload": {
-            "type": "object",
-            "required": [
-                "address_id",
-                "first_name",
-                "last_name"
-            ],
-            "properties": {
-                "address_id": {
-                    "type": "integer",
-                    "example": 2
-                },
-                "first_name": {
-                    "type": "string",
-                    "example": "Jane"
-                },
-                "last_name": {
-                    "type": "string",
-                    "example": "Doe"
+                    "type": "integer"
                 }
             }
         }

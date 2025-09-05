@@ -22,7 +22,7 @@ import (
 // @Param        email query []string false "Filter by Emails"
 // @Param        first_name query []string false "Filter by First Names"
 // @Param        last_name query []string false "Filter by Last Names"
-// @Success      200  {object}  types.FindResult{data=[]types.User} "A list of users"
+// @Success      200  {object}  object{data=[]types.User,total=int} "A list of users"
 // @Failure      400  {object}  middleware.ErrorResponse "Bad Request"
 // @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
 // @Security     AppTokenAuth
@@ -74,10 +74,8 @@ func Find(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Admins can see all users. Non-admins can only see users in their own company.
-	if !authUser.HasRole(types.RoleAdmin) {
-		opts.CompanyID = authUser.CompanyID
-	}
+	// All users, including admins, are restricted to their current company context for Find operations.
+	opts.CompanyID = authUser.CompanyID
 
 	users, count, err := repo.Users().Find(r.Context(), &opts)
 	if err != nil {

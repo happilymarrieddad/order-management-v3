@@ -12,7 +12,7 @@ import (
 
 // Update handles updating an existing user.
 func Update(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
@@ -39,7 +39,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the user to be updated
-	targetUser, found, err := repo.Users().Get(r.Context(), authUser.CompanyID, id)
+	targetUser, found, err := gr.Users().Get(r.Context(), authUser.CompanyID, id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get user")
 		return
@@ -60,7 +60,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the new address exists before updating the user
 	if payload.AddressID != nil {
-		_, found, err = repo.Addresses().Get(r.Context(), *payload.AddressID)
+		_, found, err = gr.Addresses().Get(r.Context(), *payload.AddressID)
 		if err != nil {
 			middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 			return
@@ -80,7 +80,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		targetUser.LastName = *payload.LastName
 	}
 
-	if err := repo.Users().Update(r.Context(), targetUser); err != nil {
+	if err := gr.Users().Update(r.Context(), targetUser); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update user")
 		return
 	}

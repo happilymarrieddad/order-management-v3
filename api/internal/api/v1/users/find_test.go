@@ -32,12 +32,15 @@ var _ = Describe("Find Users Endpoint", func() {
 	}
 
 	Context("Happy Path", func() {
-		It("should find users successfully for an admin", func() {
+		It("should find users successfully for an admin, scoped to their company", func() {
 			expectedUsers := []*types.User{
-				{ID: 1, CompanyID: company.ID, Email: "user1@example.com"},
-				{ID: 2, CompanyID: company.ID, Email: "user2@example.com"},
+				{ID: 1, CompanyID: adminUser.CompanyID, Email: "user1@example.com"},
+				{ID: 2, CompanyID: adminUser.CompanyID, Email: "user2@example.com"},
 			}
-			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).Return(expectedUsers, int64(len(expectedUsers)), nil)
+			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
+				Expect(opts.CompanyID).To(Equal(adminUser.CompanyID))
+				return expectedUsers, int64(len(expectedUsers)), nil
+			})
 
 			performRequest(url.Values{}, adminUser)
 
@@ -87,13 +90,13 @@ var _ = Describe("Find Users Endpoint", func() {
 			Expect(rec.Code).To(Equal(http.StatusOK))
 		})
 
-		It("should filter by company_id for admin users", func() {
+		It("should ignore company_id filter for admin users and use their own company", func() {
 			otherCompanyID := int64(99)
 			expectedUsers := []*types.User{
-				{ID: 3, CompanyID: otherCompanyID, Email: "user3@example.com"},
+				{ID: 1, CompanyID: adminUser.CompanyID, Email: "user1@example.com"},
 			}
 			mockUsersRepo.EXPECT().Find(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, opts *repos.UserFindOpts) ([]*types.User, int64, error) {
-				Expect(opts.CompanyID).To(Equal(otherCompanyID))
+				Expect(opts.CompanyID).To(Equal(adminUser.CompanyID))
 				return expectedUsers, int64(len(expectedUsers)), nil
 			})
 

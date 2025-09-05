@@ -5,73 +5,77 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
-	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-// UpdateUserCompany handles the request to update a user's company.
-// @Summary      Update a user's company
-// @Description  Moves a user to a different company. This is an admin-only operation.
-// @Tags         users
-// @Accept       json
-// @Produce      json
-// @Param        id   path      int  true  "User ID"
-// @Param        payload body      UpdateUserCompanyPayload true "Company ID"
-// @Success      204  {object}  nil
-// @Failure      400  {object}  middleware.ErrorResponse
-// @Failure      401  {object}  middleware.ErrorResponse
-// @Failure      403  {object}  middleware.ErrorResponse
-// @Failure      404  {object}  middleware.ErrorResponse
-// @Failure      500  {object}  middleware.ErrorResponse
-// @Router       /v1/users/{id}/company [put]
-// @Security     ApiKeyAuth
+// UpdateUserCompany handles updating a user's company.
+//
+//	@Summary	Update a user's company (Admin only)
+//	@Description	Moves a user to a new company. This is an admin-only endpoint.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path	int	true	"User ID"
+//	@Param			body	body	UpdateUserCompanyPayload	true	"Update Company Payload"
+//	@Success		204	"No Content"
+//	@Failure		400	{object}	middleware.ErrorResponse	"Invalid request body or Company not found"
+//	@Failure		403	{object}	middleware.ErrorResponse	"Forbidden"
+//	@Failure		404	{object}	middleware.ErrorResponse	"User not found"
+//	@Failure		500	{object}	middleware.ErrorResponse	"Internal Server Error"
+//	@Router			/users/{id}/company	[put]
 func UpdateUserCompany(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
-	usersRepo := repo.Users()
-	companiesRepo := repo.Companies()
+	gr := middleware.GetRepo(r.Context())
+
+	_, ok := middleware.GetAuthUserFromContext(r.Context())
+	if !ok {
+		middleware.WriteError(w, http.StatusUnauthorized, "unable to get authenticated user")
+		return
+	}
 
 	vars := mux.Vars(r)
-	userID, err := strconv.ParseInt(vars["id"], 10, 64)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
 	if err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid user id")
 		return
 	}
 
 	var p UpdateUserCompanyPayload
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "invalid request payload")
+	if err = json.NewDecoder(r.Body).Decode(&p); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if err := types.Validate(p); err != nil {
+	if err = validator.New().Struct(p); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Validate that the target company exists
-	_, found, err := companiesRepo.Get(r.Context(), p.CompanyID)
+	// Get the user to be updated
+	// The route is admin-only, so we can fetch the user without a companyID scope.
+	_, has, err := gr.Users().Get(r.Context(), 0, id)
 	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to verify company")
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get user")
 		return
 	}
-	if !found {
-		middleware.WriteError(w, http.StatusNotFound, "company not found")
-		return
-	}
-
-	// Validate that the user exists
-	_, found, err = usersRepo.GetIncludeInvisible(r.Context(), userID)
-	if err != nil {
-		middleware.WriteError(w, http.StatusInternalServerError, "unable to verify user")
-		return
-	}
-	if !found {
+	if !has {
 		middleware.WriteError(w, http.StatusNotFound, "user not found")
 		return
 	}
 
-	if err := usersRepo.UpdateUserCompany(r.Context(), userID, p.CompanyID); err != nil {
+	// Check if the new company exists
+	_, has, err = gr.Companies().Get(r.Context(), p.CompanyID)
+	if err != nil {
+		middleware.WriteError(w, http.StatusInternalServerError, "unable to get company")
+		return
+	}
+	if !has {
+		middleware.WriteError(w, http.StatusBadRequest, "company not found") // 400 because the payload is invalid
+		return
+	}
+
+	if err = gr.Users().UpdateUserCompany(r.Context(), id, p.CompanyID); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update user company")
 		return
 	}

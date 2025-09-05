@@ -70,4 +70,3 @@ func newAuthenticatedRequest(method, url string, body io.Reader, user *types.Use
 	}
 	return req.WithContext(ctxWithRepo)
 }
-

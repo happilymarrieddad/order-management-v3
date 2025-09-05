@@ -1,26 +1,39 @@
 definitions:
-  addresses.UpdateAddressPayload:
+  addresses.CreateAddressPayload:
     properties:
       city:
-        example: Newville
+        type: string
+      country:
         type: string
       line_1:
-        example: 456 Market St
         type: string
       line_2:
-        example: Suite 200
         type: string
       postal_code:
-        example: "54321"
         type: string
       state:
-        example: NY
         type: string
     required:
     - city
+    - country
     - line_1
     - postal_code
     - state
+    type: object
+  addresses.UpdateAddressPayload:
+    properties:
+      city:
+        type: string
+      country:
+        type: string
+      line_1:
+        type: string
+      line_2:
+        type: string
+      postal_code:
+        type: string
+      state:
+        type: string
     type: object
   auth.LoginPayload:
     properties:
@@ -56,15 +69,9 @@ definitions:
   commodities.UpdateCommodityPayload:
     properties:
       commodity_type:
-        allOf:
-        - $ref: '#/definitions/types.CommodityType'
-        example: 1
+        $ref: '#/definitions/types.CommodityType'
       name:
-        example: Orange
         type: string
-    required:
-    - commodity_type
-    - name
     type: object
   commodityattributes.CreateCommodityAttributePayload:
     properties:
@@ -84,52 +91,24 @@ definitions:
   commodityattributes.UpdateCommodityAttributePayload:
     properties:
       commodityType:
-        allOf:
-        - $ref: '#/definitions/types.CommodityType'
-        enum:
-        - 1
+        $ref: '#/definitions/types.CommodityType'
       name:
-        maxLength: 255
-        minLength: 2
         type: string
-    required:
-    - commodityType
-    - name
-    type: object
-  companies.CreateCompanyPayload:
-    properties:
-      address_id:
-        example: 1
-        type: integer
-      name:
-        example: Awesome Inc.
-        type: string
-    required:
-    - address_id
-    - name
     type: object
   companies.UpdateCompanyPayload:
     properties:
       address_id:
-        example: 2
         type: integer
       name:
-        example: Even Better Inc.
         type: string
-    required:
-    - address_id
-    - name
     type: object
   locations.CreateLocationPayload:
     properties:
       address_id:
-        example: 1
         type: integer
       company_id:
-        example: 1
         type: integer
       name:
-        example: Main Warehouse
         type: string
     required:
     - address_id
@@ -139,114 +118,15 @@ definitions:
   locations.UpdateLocationPayload:
     properties:
       address_id:
-        example: 2
         type: integer
       name:
-        example: Downtown Office
         type: string
-    required:
-    - address_id
-    - name
     type: object
   middleware.ErrorResponse:
     properties:
       error:
         example: a description of the error
         type: string
-    type: object
-  repos.AddressFindOpts:
-    properties:
-      ids:
-        items:
-          format: int64
-          type: integer
-        type: array
-      limit:
-        type: integer
-      offset:
-        type: integer
-    type: object
-  repos.CommodityAttributeFindOpts:
-    properties:
-      commodityTypes:
-        description: For IN query
-        items:
-          $ref: '#/definitions/types.CommodityType'
-        type: array
-      ids:
-        items:
-          format: int64
-          type: integer
-        type: array
-      limit:
-        type: integer
-      offset:
-        type: integer
-    type: object
-  repos.CompanyFindOpts:
-    properties:
-      limit:
-        type: integer
-      offset:
-        type: integer
-    type: object
-  repos.FindCommoditiesOpts:
-    properties:
-      commodityType:
-        $ref: '#/definitions/types.CommodityType'
-      ids:
-        items:
-          format: int64
-          type: integer
-        type: array
-      limit:
-        type: integer
-      name:
-        type: string
-      offset:
-        type: integer
-    type: object
-  repos.LocationFindOpts:
-    properties:
-      addressIDs:
-        items:
-          format: int64
-          type: integer
-        type: array
-      companyIDs:
-        items:
-          format: int64
-          type: integer
-        type: array
-      ids:
-        items:
-          format: int64
-          type: integer
-        type: array
-      limit:
-        type: integer
-      names:
-        items:
-          type: string
-        type: array
-      offset:
-        type: integer
-    type: object
-  repos.UserFindOpts:
-    properties:
-      emails:
-        items:
-          type: string
-        type: array
-      ids:
-        items:
-          format: int64
-          type: integer
-        type: array
-      limit:
-        type: integer
-      offset:
-        type: integer
     type: object
   types.Address:
     properties:
@@ -340,12 +220,6 @@ definitions:
     - address_id
     - name
     type: object
-  types.FindResult:
-    properties:
-      data: {}
-      total:
-        type: integer
-    type: object
   types.Location:
     properties:
       address:
@@ -414,61 +288,57 @@ definitions:
     - firstName
     - lastName
     type: object
-  users.CreateUserPayload:
+  users.UpdateUserCompanyPayload:
     properties:
-      address_id:
-        example: 1
-        type: integer
       company_id:
-        example: 1
         type: integer
-      confirm_password:
-        example: password123
-        type: string
-      email:
-        example: test@example.com
-        type: string
-      first_name:
-        example: John
-        type: string
-      last_name:
-        example: Doe
-        type: string
-      password:
-        example: password123
-        minLength: 8
-        type: string
     required:
-    - address_id
     - company_id
-    - confirm_password
-    - email
-    - first_name
-    - last_name
-    - password
-    type: object
-  users.UpdateUserPayload:
-    properties:
-      address_id:
-        example: 2
-        type: integer
-      first_name:
-        example: Jane
-        type: string
-      last_name:
-        example: Doe
-        type: string
-    required:
-    - address_id
-    - first_name
-    - last_name
     type: object
 info:
   contact: {}
 paths:
+  /addresses:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new address.
+      parameters:
+      - description: Address Creation Payload
+        in: body
+        name: address
+        required: true
+        schema:
+          $ref: '#/definitions/addresses.CreateAddressPayload'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created address
+          schema:
+            $ref: '#/definitions/types.Address'
+        "400":
+          description: Bad Request - Invalid input or validation failed
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - AppTokenAuth: []
+      summary: Create a new address
+      tags:
+      - addresses
   /addresses/{id}:
     get:
-      description: Retrieves the details of a single address by its unique ID.
+      consumes:
+      - application/json
+      description: Gets an address by its ID.
       parameters:
       - description: Address ID
         in: path
@@ -479,20 +349,28 @@ paths:
       - application/json
       responses:
         "200":
-          description: Successfully retrieved address
+          description: OK
           schema:
             $ref: '#/definitions/types.Address'
         "400":
-          description: Bad Request - Invalid ID
+          description: Invalid Address ID
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "404":
-          description: Not Found - Address not found
+          description: Address not found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
       security:
-      - BearerAuth: []
-      summary: Get an address by ID
+      - AppTokenAuth: []
+      summary: Get an address
       tags:
       - addresses
     put:
@@ -532,32 +410,41 @@ paths:
       tags:
       - addresses
   /addresses/find:
-    post:
+    get:
       consumes:
       - application/json
-      description: Finds addresses with optional filters and pagination by sending
-        a JSON body.
+      description: Finds addresses with optional filters and pagination using query
+        parameters.
       parameters:
-      - description: Find options
-        in: body
-        name: opts
-        required: true
-        schema:
-          $ref: '#/definitions/repos.AddressFindOpts'
+      - collectionFormat: csv
+        description: Address IDs
+        in: query
+        items:
+          type: integer
+        name: id
+        type: array
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: A list of addresses
           schema:
-            allOf:
-            - $ref: '#/definitions/types.FindResult'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/types.Address'
-                  type: array
-              type: object
+            properties:
+              data:
+                items:
+                  $ref: '#/definitions/types.Address'
+                type: array
+              total:
+                type: integer
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -711,32 +598,52 @@ paths:
       tags:
       - commodities
   /commodities/find:
-    post:
+    get:
       consumes:
       - application/json
-      description: Finds commodities with optional filters and pagination by sending
-        a JSON body.
+      description: Finds commodities with optional filters and pagination using query
+        parameters.
       parameters:
-      - description: Find options
-        in: body
-        name: opts
-        required: true
-        schema:
-          $ref: '#/definitions/repos.FindCommoditiesOpts'
+      - collectionFormat: csv
+        description: Commodity IDs
+        in: query
+        items:
+          type: integer
+        name: id
+        type: array
+      - collectionFormat: csv
+        description: Commodity names
+        in: query
+        items:
+          type: string
+        name: name
+        type: array
+      - description: Commodity type
+        in: query
+        name: commodity_type
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: A list of commodities
           schema:
-            allOf:
-            - $ref: '#/definitions/types.FindResult'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/types.Commodity'
-                  type: array
-              type: object
+            properties:
+              data:
+                items:
+                  $ref: '#/definitions/types.Commodity'
+                type: array
+              total:
+                type: integer
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -796,7 +703,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: Retrieves a single commodity attribute by its ID.
+      description: Gets a commodity attribute by its ID.
       parameters:
       - description: Commodity Attribute ID
         in: path
@@ -807,30 +714,28 @@ paths:
       - application/json
       responses:
         "200":
-          description: Successfully retrieved commodity attribute
+          description: OK
           schema:
             $ref: '#/definitions/types.CommodityAttribute'
         "400":
-          description: Bad Request - Invalid ID
+          description: Invalid Commodity Attribute ID
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "401":
-          description: Unauthorized - Missing or invalid token
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-        "403":
-          description: Forbidden - Insufficient permissions
+          description: Unauthorized
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "404":
-          description: Not Found - Commodity attribute not found
+          description: Commodity Attribute not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
-      summary: Get a commodity attribute by ID
+      security:
+      - AppTokenAuth: []
+      summary: Get a commodity attribute
       tags:
       - commodity-attributes
     put:
@@ -884,32 +789,48 @@ paths:
       tags:
       - commodity-attributes
   /commodity-attributes/find:
-    post:
+    get:
       consumes:
       - application/json
       description: Finds commodity attributes with optional filters and pagination
-        by sending a JSON body.
+        by sending query parameters.
       parameters:
-      - description: Find options
-        in: body
-        name: opts
-        required: true
-        schema:
-          $ref: '#/definitions/repos.CommodityAttributeFindOpts'
+      - description: Number of records to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of records to skip
+        in: query
+        name: offset
+        type: integer
+      - collectionFormat: csv
+        description: Filter by Commodity Attribute IDs
+        in: query
+        items:
+          type: integer
+        name: id
+        type: array
+      - collectionFormat: csv
+        description: Filter by Commodity Types (e.g., 'grain', 'fruit')
+        in: query
+        items:
+          type: string
+        name: commodity_types
+        type: array
       produces:
       - application/json
       responses:
         "200":
           description: A list of commodity attributes
           schema:
-            allOf:
-            - $ref: '#/definitions/types.FindResult'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/types.CommodityAttribute'
-                  type: array
-              type: object
+            properties:
+              data:
+                items:
+                  $ref: '#/definitions/types.CommodityAttribute'
+                type: array
+              total:
+                type: integer
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -944,38 +865,10 @@ paths:
       summary: Get all commodity types
       tags:
       - public
-  /companies:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new company with the provided details.
-      parameters:
-      - description: Company Creation Payload
-        in: body
-        name: company
-        required: true
-        schema:
-          $ref: '#/definitions/companies.CreateCompanyPayload'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Successfully created company
-          schema:
-            $ref: '#/definitions/types.Company'
-        "400":
-          description: Bad Request - Invalid input
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-      summary: Create a new company
-      tags:
-      - companies
   /companies/{id}:
     delete:
+      consumes:
+      - application/json
       description: Deletes a company by its ID.
       parameters:
       - description: Company ID
@@ -983,11 +876,17 @@ paths:
         name: id
         required: true
         type: integer
+      produces:
+      - application/json
       responses:
         "204":
           description: No Content
         "400":
-          description: Bad Request - Invalid ID
+          description: Invalid Company ID
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Company not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
@@ -995,12 +894,14 @@ paths:
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
       security:
-      - BearerAuth: []
+      - AppTokenAuth: []
       summary: Delete a company
       tags:
       - companies
     get:
-      description: Retrieves the details of a single company by its unique ID.
+      consumes:
+      - application/json
+      description: Gets a company by its ID.
       parameters:
       - description: Company ID
         in: path
@@ -1011,26 +912,38 @@ paths:
       - application/json
       responses:
         "200":
-          description: Successfully retrieved company
+          description: OK
           schema:
             $ref: '#/definitions/types.Company'
         "400":
-          description: Bad Request - Invalid ID
+          description: Invalid Company ID
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "404":
-          description: Not Found - Company not found
+          description: Company not found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
       security:
-      - BearerAuth: []
-      summary: Get a company by ID
+      - AppTokenAuth: []
+      summary: Get a company
       tags:
       - companies
     put:
       consumes:
       - application/json
-      description: Updates an existing company with new details.
+      description: Updates an existing company's details.
       parameters:
       - description: Company ID
         in: path
@@ -1059,37 +972,53 @@ paths:
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
       security:
-      - BearerAuth: []
+      - AppTokenAuth: []
       summary: Update a company
       tags:
       - companies
   /companies/find:
-    post:
+    get:
       consumes:
       - application/json
-      description: Finds companies with optional filters and pagination by sending
-        a JSON body.
+      description: Finds companies with optional filters and pagination using query
+        parameters.
       parameters:
-      - description: Find options
-        in: body
-        name: opts
-        required: true
-        schema:
-          $ref: '#/definitions/repos.CompanyFindOpts'
+      - collectionFormat: csv
+        description: Company IDs
+        in: query
+        items:
+          type: integer
+        name: id
+        type: array
+      - collectionFormat: csv
+        description: Company names
+        in: query
+        items:
+          type: string
+        name: name
+        type: array
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: A list of companies
           schema:
-            allOf:
-            - $ref: '#/definitions/types.FindResult'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/types.Company'
-                  type: array
-              type: object
+            properties:
+              data:
+                items:
+                  $ref: '#/definitions/types.Company'
+                type: array
+              total:
+                type: integer
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -1107,8 +1036,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new location for a company. The location name must be
-        unique per company.
+      description: Creates a new location for a company.
       parameters:
       - description: Location Creation Payload
         in: body
@@ -1124,8 +1052,15 @@ paths:
           schema:
             $ref: '#/definitions/types.Location'
         "400":
-          description: Bad Request - Invalid input, duplicate name, or dependency
-            not found
+          description: Bad Request - Invalid input or validation failed
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
@@ -1139,6 +1074,8 @@ paths:
       - locations
   /locations/{id}:
     delete:
+      consumes:
+      - application/json
       description: Deletes a location by its ID.
       parameters:
       - description: Location ID
@@ -1146,11 +1083,25 @@ paths:
         name: id
         required: true
         type: integer
+      produces:
+      - application/json
       responses:
         "204":
           description: No Content
         "400":
-          description: Bad Request - Invalid ID
+          description: Invalid Location ID
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Location not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
@@ -1158,13 +1109,14 @@ paths:
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
       security:
-      - BearerAuth: []
+      - AppTokenAuth: []
       summary: Delete a location
       tags:
       - locations
     get:
-      description: Retrieves the details of a single location, including its company
-        and address.
+      consumes:
+      - application/json
+      description: Gets a location by its ID.
       parameters:
       - description: Location ID
         in: path
@@ -1175,15 +1127,23 @@ paths:
       - application/json
       responses:
         "200":
-          description: Successfully retrieved location
+          description: OK
           schema:
             $ref: '#/definitions/types.Location'
         "400":
-          description: Bad Request - Invalid ID
+          description: Invalid Location ID
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "404":
-          description: Not Found - Location not found
+          description: Location not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
@@ -1192,13 +1152,13 @@ paths:
             $ref: '#/definitions/middleware.ErrorResponse'
       security:
       - AppTokenAuth: []
-      summary: Get a location by ID
+      summary: Get a location
       tags:
       - locations
     put:
       consumes:
       - application/json
-      description: Updates an existing location's name and/or address.
+      description: Updates an existing location's details.
       parameters:
       - description: Location ID
         in: path
@@ -1222,8 +1182,16 @@ paths:
           description: Bad Request - Invalid input or ID
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
         "404":
-          description: Not Found - Location or new address not found
+          description: Not Found - Location not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
@@ -1236,32 +1204,38 @@ paths:
       tags:
       - locations
   /locations/find:
-    post:
+    get:
       consumes:
       - application/json
       description: Finds locations with optional filters and pagination by sending
-        a JSON body.
+        query parameters.
       parameters:
-      - description: Find options
-        in: body
-        name: opts
-        required: true
-        schema:
-          $ref: '#/definitions/repos.LocationFindOpts'
+      - description: Number of records to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of records to skip
+        in: query
+        name: offset
+        type: integer
+      - description: Location name filter
+        in: query
+        name: name
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: A list of locations
           schema:
-            allOf:
-            - $ref: '#/definitions/types.FindResult'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/types.Location'
-                  type: array
-              type: object
+            properties:
+              data:
+                items:
+                  $ref: '#/definitions/types.Location'
+                type: array
+              total:
+                type: integer
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -1317,160 +1291,144 @@ paths:
       summary: Get all roles
       tags:
       - public
-  /users:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new user account with the provided details.
-      parameters:
-      - description: User Creation Payload
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/users.CreateUserPayload'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Successfully created user
-          schema:
-            $ref: '#/definitions/types.User'
-        "400":
-          description: Bad Request - Invalid input or user already exists
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-      summary: Create a new user
-      tags:
-      - users
   /users/{id}:
     delete:
-      description: Deletes a user by their ID.
+      consumes:
+      - application/json
+      description: Deletes a user by their ID. A user can delete themselves, or an
+        admin can delete any user within the same company.
       parameters:
       - description: User ID
         in: path
         name: id
         required: true
         type: integer
+      produces:
+      - application/json
       responses:
         "204":
           description: No Content
         "400":
-          description: Bad Request - Invalid ID
+          description: Invalid User ID
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: User not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
-      security:
-      - BearerAuth: []
       summary: Delete a user
       tags:
       - users
-    get:
-      description: Retrieves the details of a single user by their unique ID.
-      parameters:
-      - description: User ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Successfully retrieved user
-          schema:
-            $ref: '#/definitions/types.User'
-        "400":
-          description: Bad Request - Invalid ID
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-        "404":
-          description: Not Found - User not found
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/middleware.ErrorResponse'
-      security:
-      - AppTokenAuth: []
-      summary: Get a user by ID
-      tags:
-      - users
+  /users/{id}/company:
     put:
       consumes:
       - application/json
-      description: Updates an existing user's details. This does not update the password.
+      description: Moves a user to a new company. This is an admin-only endpoint.
       parameters:
       - description: User ID
         in: path
         name: id
         required: true
         type: integer
-      - description: User Update Payload
+      - description: Update Company Payload
         in: body
-        name: user
+        name: body
         required: true
         schema:
-          $ref: '#/definitions/users.UpdateUserPayload'
+          $ref: '#/definitions/users.UpdateUserCompanyPayload'
       produces:
       - application/json
       responses:
-        "200":
-          description: Successfully updated user
-          schema:
-            $ref: '#/definitions/types.User'
+        "204":
+          description: No Content
         "400":
-          description: Bad Request - Invalid input or ID
+          description: Invalid request body or Company not found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "404":
-          description: Not Found - User not found
+          description: User not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Update a user
+      summary: Update a user's company (Admin only)
       tags:
       - users
   /users/find:
-    post:
+    get:
       consumes:
       - application/json
-      description: Finds users with optional filters and pagination by sending a JSON
-        body.
+      description: Finds users with optional filters and pagination by sending query
+        parameters.
       parameters:
-      - description: Find options
-        in: body
-        name: opts
-        required: true
-        schema:
-          $ref: '#/definitions/repos.UserFindOpts'
+      - description: Number of records to return
+        in: query
+        name: limit
+        type: integer
+      - description: Number of records to skip
+        in: query
+        name: offset
+        type: integer
+      - description: Filter by Company ID
+        in: query
+        name: company_id
+        type: integer
+      - collectionFormat: csv
+        description: Filter by User IDs
+        in: query
+        items:
+          type: integer
+        name: id
+        type: array
+      - collectionFormat: csv
+        description: Filter by Emails
+        in: query
+        items:
+          type: string
+        name: email
+        type: array
+      - collectionFormat: csv
+        description: Filter by First Names
+        in: query
+        items:
+          type: string
+        name: first_name
+        type: array
+      - collectionFormat: csv
+        description: Filter by Last Names
+        in: query
+        items:
+          type: string
+        name: last_name
+        type: array
       produces:
       - application/json
       responses:
         "200":
           description: A list of users
           schema:
-            allOf:
-            - $ref: '#/definitions/types.FindResult'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/types.User'
-                  type: array
-              type: object
+            properties:
+              data:
+                items:
+                  $ref: '#/definitions/types.User'
+                type: array
+              total:
+                type: integer
+            type: object
         "400":
           description: Bad Request
           schema:

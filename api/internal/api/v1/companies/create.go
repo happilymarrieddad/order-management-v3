@@ -9,7 +9,7 @@ import (
 )
 
 func Create(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	var payload CreateCompanyPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -23,7 +23,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate that the address exists
-	_, found, err := repo.Addresses().Get(r.Context(), payload.AddressID)
+	_, found, err := gr.Addresses().Get(r.Context(), payload.AddressID)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 		return
@@ -38,7 +38,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		AddressID: payload.AddressID,
 	}
 
-	if err := repo.Companies().Create(r.Context(), company); err != nil {
+	if err := gr.Companies().Create(r.Context(), company); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to create company")
 		return
 	}

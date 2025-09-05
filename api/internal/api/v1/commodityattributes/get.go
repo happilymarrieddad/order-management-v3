@@ -7,9 +7,22 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/middleware"
+	_ "github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
-// Get handles retrieving a single commodity attribute by its ID.
+// @Summary      Get a commodity attribute
+// @Description  Gets a commodity attribute by its ID.
+// @Tags         commodity-attributes
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "Commodity Attribute ID"
+// @Success      200  {object}  types.CommodityAttribute
+// @Failure      400  {object}  middleware.ErrorResponse "Invalid Commodity Attribute ID"
+// @Failure      401  {object}  middleware.ErrorResponse "Unauthorized"
+// @Failure      404  {object}  middleware.ErrorResponse "Commodity Attribute not found"
+// @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /commodity-attributes/{id} [get]
 func Get(w http.ResponseWriter, r *http.Request) {
 	// Get the authenticated user from the context (cached by AuthMiddleware).
 	_, found := middleware.GetAuthUserFromContext(r.Context())
@@ -18,7 +31,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
@@ -26,7 +39,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attr, found, err := repo.CommodityAttributes().Get(r.Context(), id)
+	attr, found, err := gr.CommodityAttributes().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get commodity attribute")
 		return

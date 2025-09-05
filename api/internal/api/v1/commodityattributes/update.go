@@ -29,7 +29,7 @@ import (
 // @Failure      500       {object}  middleware.ErrorResponse        "Internal Server Error"
 // @Router       /commodity-attributes/{id} [put]
 func Update(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["id"], 10, 64)
 	if err != nil {
@@ -49,7 +49,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get existing attribute to ensure it exists and to preserve original fields
-	ca, found, err := repo.CommodityAttributes().Get(r.Context(), id)
+	ca, found, err := gr.CommodityAttributes().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get commodity attribute")
 		return
@@ -66,7 +66,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 				ca.CommodityType = utils.Deref(payload.CommodityType)
 	}
 
-	if err := repo.CommodityAttributes().Update(r.Context(), ca); err != nil {
+	if err := gr.CommodityAttributes().Update(r.Context(), ca); err != nil {
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 			middleware.WriteError(w, http.StatusConflict, "Commodity attribute with this name already exists")
 			return

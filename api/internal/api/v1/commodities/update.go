@@ -32,7 +32,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["id"], 10, 64)
 	if err != nil {
@@ -51,7 +51,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	commodity, found, err := repo.Commodities().Get(r.Context(), id)
+	commodity, found, err := gr.Commodities().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get commodity")
 		return
@@ -68,7 +68,7 @@ func Update(w http.ResponseWriter, r *http.Request) {
 				commodity.CommodityType = utils.Deref(payload.CommodityType)
 	}
 
-	if err := repo.Commodities().Update(r.Context(), commodity); err != nil {
+	if err := gr.Commodities().Update(r.Context(), commodity); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to update commodity")
 		return
 	}

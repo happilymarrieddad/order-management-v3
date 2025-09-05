@@ -11,7 +11,7 @@ import (
 
 // Get handles retrieving a single user by their ID.
 func Get(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
@@ -26,7 +26,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, found, err := repo.Users().Get(r.Context(), authUser.CompanyID, id)
+	user, found, err := gr.Users().Get(r.Context(), authUser.CompanyID, id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get user")
 		return

@@ -96,18 +96,18 @@ func (mr *MockGlobalRepoMockRecorder) Companies() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Companies", reflect.TypeOf((*MockGlobalRepo)(nil).Companies))
 }
 
-// CompanyAttributes mocks base method.
-func (m *MockGlobalRepo) CompanyAttributes() repos.CompanyAttributesRepo {
+// CompanyAttributeSettings mocks base method.
+func (m *MockGlobalRepo) CompanyAttributeSettings() repos.CompanyAttributeSettingsRepo {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CompanyAttributes")
-	ret0, _ := ret[0].(repos.CompanyAttributesRepo)
+	ret := m.ctrl.Call(m, "CompanyAttributeSettings")
+	ret0, _ := ret[0].(repos.CompanyAttributeSettingsRepo)
 	return ret0
 }
 
-// CompanyAttributes indicates an expected call of CompanyAttributes.
-func (mr *MockGlobalRepoMockRecorder) CompanyAttributes() *gomock.Call {
+// CompanyAttributeSettings indicates an expected call of CompanyAttributeSettings.
+func (mr *MockGlobalRepoMockRecorder) CompanyAttributeSettings() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompanyAttributes", reflect.TypeOf((*MockGlobalRepo)(nil).CompanyAttributes))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompanyAttributeSettings", reflect.TypeOf((*MockGlobalRepo)(nil).CompanyAttributeSettings))
 }
 
 // Locations mocks base method.
@@ -122,6 +122,34 @@ func (m *MockGlobalRepo) Locations() repos.LocationsRepo {
 func (mr *MockGlobalRepoMockRecorder) Locations() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Locations", reflect.TypeOf((*MockGlobalRepo)(nil).Locations))
+}
+
+// ProductAttributeValues mocks base method.
+func (m *MockGlobalRepo) ProductAttributeValues() repos.ProductAttributeValuesRepo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProductAttributeValues")
+	ret0, _ := ret[0].(repos.ProductAttributeValuesRepo)
+	return ret0
+}
+
+// ProductAttributeValues indicates an expected call of ProductAttributeValues.
+func (mr *MockGlobalRepoMockRecorder) ProductAttributeValues() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProductAttributeValues", reflect.TypeOf((*MockGlobalRepo)(nil).ProductAttributeValues))
+}
+
+// Products mocks base method.
+func (m *MockGlobalRepo) Products() repos.ProductsRepo {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Products")
+	ret0, _ := ret[0].(repos.ProductsRepo)
+	return ret0
+}
+
+// Products indicates an expected call of Products.
+func (mr *MockGlobalRepoMockRecorder) Products() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Products", reflect.TypeOf((*MockGlobalRepo)(nil).Products))
 }
 
 // Users mocks base method.

@@ -18,7 +18,7 @@ import (
 // @Param        id     query    []int  false  "Address IDs"
 // @Param        limit  query    int    false  "Limit"
 // @Param        offset query    int    false  "Offset"
-// @Success      200    {object}  types.FindResult{data=[]types.Address} "A list of addresses"
+// @Success      200    {object}  object{data=[]types.Address,total=int} "A list of addresses"
 // @Failure      400    {object}  middleware.ErrorResponse "Bad Request"
 // @Failure      500    {object}  middleware.ErrorResponse "Internal Server Error"
 // @Security     AppTokenAuth
@@ -31,7 +31,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	ids, err := utils.GetQueryInt64Slice(r, "id")
 	if err != nil {
@@ -60,7 +60,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 		Offset: offset,
 	}
 
-	addrs, count, err := repo.Addresses().Find(r.Context(), opts)
+	addrs, count, err := gr.Addresses().Find(r.Context(), opts)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to find addresses")
 		return

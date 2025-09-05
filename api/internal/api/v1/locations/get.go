@@ -10,8 +10,22 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/types"
 )
 
+// @Summary      Get a location
+// @Description  Gets a location by its ID.
+// @Tags         locations
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "Location ID"
+// @Success      200  {object}  types.Location
+// @Failure      400  {object}  middleware.ErrorResponse "Invalid Location ID"
+// @Failure      401  {object}  middleware.ErrorResponse "Unauthorized"
+// @Failure      403  {object}  middleware.ErrorResponse "Forbidden"
+// @Failure      404  {object}  middleware.ErrorResponse "Location not found"
+// @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
+// @Security     AppTokenAuth
+// @Router       /locations/{id} [get]
 func Get(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 	if err != nil {
@@ -31,7 +45,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		companyID = authUser.CompanyID
 	}
 
-	loc, found, err := repo.Locations().Get(r.Context(), companyID, id)
+	loc, found, err := gr.Locations().Get(r.Context(), companyID, id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get location")
 		return

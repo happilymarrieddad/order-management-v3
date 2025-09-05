@@ -7,6 +7,7 @@ import (
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/commodityattributes"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/companies"
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/locations"
+	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/products" // Added
 	"github.com/happilymarrieddad/order-management-v3/api/internal/api/v1/users"
 )
 
@@ -18,5 +19,6 @@ func AddAuthRoutes(r *mux.Router) {
 	commodityattributes.AddRoutes(r)
 	companies.AddRoutes(r)
 	locations.AddRoutes(r)
+	products.AddRoutes(r)
 	users.AddRoutes(r)
 }

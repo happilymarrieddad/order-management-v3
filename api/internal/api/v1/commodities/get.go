@@ -28,7 +28,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 	vars := mux.Vars(r)
 	id, err := strconv.ParseInt(vars["id"], 10, 64)
 	if err != nil {
@@ -36,7 +36,7 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	commodity, found, err := repo.Commodities().Get(r.Context(), id)
+	commodity, found, err := gr.Commodities().Get(r.Context(), id)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to get commodity")
 		return

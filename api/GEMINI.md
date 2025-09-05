@@ -64,6 +64,7 @@ To ensure our API handler tests are robust and consistent, please follow these c
 ### Data Model & Business Logic
 
 *   **Ownership Checks (Multi-tenancy)**: Handlers that create or modify company-scoped resources (e.g., `User`, `Location`) must verify that the acting user belongs to the correct company. While admins have broad permissions, they are also subject to company ownership rules for most resources. For example, an admin can only find locations within their own company.
+*   **Admin Data Access**: Administrators are restricted to finding/listing data (e.g., Users, Locations) only within the company they are currently associated with. To manage data in another company, they must first switch their active company context. However, for targeted operations like moving a user, they have the authority to act across different companies.
 
 ## API Documentation (Swagger)
 
@@ -119,7 +120,7 @@ A complete example of this pattern can be found in `types/roles.go`. Please foll
 
 ## Interaction Guidelines
 
-*   **Tone and Style**: Adopt a conversational style akin to J.A.R.V.I.S. from Iron Man.
+*   **Tone and Style**: Adopt a conversational style akin to Alfred from Batman.
 *   **No colloquialisms**: Avoid informal phrases like 'My Bad'.
 
 ## Lessons Learned
@@ -136,3 +137,4 @@ A complete example of this pattern can be found in `types/roles.go`. Please foll
 *   **Route-Level Authorization**: Understand that routes can be restricted by middleware (e.g., `adminRouter.Use(middleware.AuthUserAdminRequiredMuxMiddleware())`). Tests should reflect this by expecting `403 Forbidden` for unauthorized access, rather than attempting to test business logic that will not be reached.
 *   **`utils.TRef` vs `utils.Ref`**: Ensure correct usage of utility functions for creating pointers to primitive types (e.g., `utils.TRef` if available and intended for this purpose).
 *   **Always use `utils.Deref` for dereferencing pointers**: Always use `utils.Deref` when dereferencing pointers to ensure safe handling of nil pointers and to provide a consistent way of accessing pointer values. `utils.Deref` is intended for all scenarios where a pointer needs to be dereferenced.
+*   **`required_without_all` Validation**: When designing payloads where at least one field from a group is required, use the `required_without_all` validation tag. Ensure all fields in such groups are pointers (`*type`) to allow them to be `nil` when not provided. This explicitly communicates that the field is optional unless others in the group are absent.

@@ -18,13 +18,13 @@ import (
 // @Param        limit query int false "Number of records to return"
 // @Param        offset query int false "Number of records to skip"
 // @Param        name query string false "Location name filter"
-// @Success      200  {object}  types.FindResult{data=[]types.Location} "A list of locations"
+// @Success      200  {object}  object{data=[]types.Location,total=int} "A list of locations"
 // @Failure      400  {object}  middleware.ErrorResponse "Bad Request"
 // @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
 // @Security     AppTokenAuth
 // @Router       /locations/find [get]
 func Find(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	limit, err := utils.GetQueryInt(r, "limit")
 	if err != nil {
@@ -57,7 +57,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 	// For now we force everyone to only see locations in their own company.
 	opts.CompanyIDs = []int64{authUser.CompanyID}
 
-	locations, count, err := repo.Locations().Find(r.Context(), &opts)
+	locations, count, err := gr.Locations().Find(r.Context(), &opts)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to find locations")
 		return

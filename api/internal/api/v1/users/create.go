@@ -10,7 +10,7 @@ import (
 
 // Create handles the creation of a new user.
 func Create(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	var payload CreateUserPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -40,7 +40,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user with that email already exists
-	_, found, err := repo.Users().GetByEmail(r.Context(), payload.Email)
+	_, found, err := gr.Users().GetByEmail(r.Context(), payload.Email)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to check for existing user")
 		return
@@ -51,7 +51,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if dependencies exist
-	_, found, err = repo.Companies().Get(r.Context(), payload.CompanyID)
+	_, found, err = gr.Companies().Get(r.Context(), payload.CompanyID)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate company")
 		return
@@ -61,7 +61,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, found, err = repo.Addresses().Get(r.Context(), payload.AddressID)
+	_, found, err = gr.Addresses().Get(r.Context(), payload.AddressID)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to validate address")
 		return
@@ -81,7 +81,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		Roles:     types.Roles{types.RoleUser}, // Default to user role
 	}
 
-	if err := repo.Users().Create(r.Context(), user); err != nil {
+	if err := gr.Users().Create(r.Context(), user); err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to create user")
 		return
 	}

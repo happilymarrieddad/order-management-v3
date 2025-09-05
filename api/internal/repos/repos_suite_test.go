@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"testing"
 
 	"github.com/happilymarrieddad/order-management-v3/api/internal/repos"
@@ -84,6 +85,19 @@ var _ = BeforeEach(func() {
 	// For Postgres, truncating tables is a fast and effective way to ensure test isolation.
 	// 'RESTART IDENTITY' resets auto-incrementing primary keys.
 	// 'CASCADE' truncates dependent tables via foreign keys.
-	_, err := db.Exec("TRUNCATE TABLE users, companies, addresses, locations, commodity_attributes, commodities, company_attributes RESTART IDENTITY CASCADE")
+	tablesToTruncate := []string{
+		"users",
+		"companies",
+		"addresses",
+		"locations",
+		"commodity_attributes",
+		"commodities",
+		"products",
+		"product_attribute_values",
+		"company_attribute_settings",
+	}
+
+	truncateStatement := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tablesToTruncate, ", "))
+	_, err := db.Exec(truncateStatement)
 	Expect(err).NotTo(HaveOccurred())
 })

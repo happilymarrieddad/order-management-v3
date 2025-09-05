@@ -14,7 +14,9 @@ type GlobalRepo interface {
 	Locations() LocationsRepo
 	CommodityAttributes() CommodityAttributesRepo
 	Commodities() CommoditiesRepo
-	CompanyAttributes() CompanyAttributesRepo
+	Products() ProductsRepo
+	ProductAttributeValues() ProductAttributeValuesRepo
+	CompanyAttributeSettings() CompanyAttributeSettingsRepo
 }
 
 func NewGlobalRepo(db *xorm.Engine, gclient GoogleAPIClient) GlobalRepo {
@@ -86,6 +88,14 @@ func (gr *globalRepo) Commodities() CommoditiesRepo {
 	return gr.factory("Commodities", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCommoditiesRepo(db) }).(CommoditiesRepo)
 }
 
-func (gr *globalRepo) CompanyAttributes() CompanyAttributesRepo {
-	return gr.factory("CompanyAttributes", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCompanyAttributesRepo(db) }).(CompanyAttributesRepo)
+func (gr *globalRepo) Products() ProductsRepo {
+	return gr.factory("Products", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewProductsRepo(db) }).(ProductsRepo)
+}
+
+func (gr *globalRepo) ProductAttributeValues() ProductAttributeValuesRepo {
+	return gr.factory("ProductAttributeValues", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewProductAttributeValuesRepo(db) }).(ProductAttributeValuesRepo)
+}
+
+func (gr *globalRepo) CompanyAttributeSettings() CompanyAttributeSettingsRepo {
+	return gr.factory("CompanyAttributeSettings", func(db *xorm.Engine, _ GoogleAPIClient) interface{} { return NewCompanyAttributeSettingsRepo(db) }).(CompanyAttributeSettingsRepo)
 }

@@ -19,7 +19,7 @@ import (
 // @Param        offset query int false "Number of records to skip"
 // @Param        id query []int false "Filter by Commodity Attribute IDs"
 // @Param        commodity_types query []string false "Filter by Commodity Types (e.g., 'grain', 'fruit')"
-// @Success      200  {object}  types.FindResult{data=[]types.CommodityAttribute} "A list of commodity attributes"
+// @Success      200  {object}  object{data=[]types.CommodityAttribute,total=int} "A list of commodity attributes"
 // @Failure      400  {object}  middleware.ErrorResponse "Bad Request"
 // @Failure      500  {object}  middleware.ErrorResponse "Internal Server Error"
 // @Security     AppTokenAuth
@@ -32,7 +32,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 
 	limit, err := utils.GetQueryInt(r, "limit")
 	if err != nil {
@@ -70,7 +70,7 @@ func Find(w http.ResponseWriter, r *http.Request) {
 		CommodityTypes: commodityTypes,
 	}
 
-	commodityAttributes, count, err := repo.CommodityAttributes().Find(r.Context(), opts)
+	commodityAttributes, count, err := gr.CommodityAttributes().Find(r.Context(), opts)
 	if err != nil {
 		middleware.WriteError(w, http.StatusInternalServerError, "unable to find commodity attributes")
 		return

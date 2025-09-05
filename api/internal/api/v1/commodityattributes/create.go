@@ -24,7 +24,7 @@ import (
 // @Failure      500       {object}  middleware.ErrorResponse        "Internal Server Error"
 // @Router       /commodity-attributes [post]
 func Create(w http.ResponseWriter, r *http.Request) {
-	repo := middleware.GetRepo(r.Context())
+	gr := middleware.GetRepo(r.Context())
 	var payload CreateCommodityAttributePayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid request body")
@@ -41,7 +41,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		CommodityType: payload.CommodityType,
 	}
 
-	if err := repo.CommodityAttributes().Create(r.Context(), ca); err != nil {
+	if err := gr.CommodityAttributes().Create(r.Context(), ca); err != nil {
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 			middleware.WriteError(w, http.StatusConflict, "Commodity attribute with this name already exists")
 			return
